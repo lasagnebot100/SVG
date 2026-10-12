@@ -35,6 +35,26 @@ Der Browser öffnet sich automatisch unter `http://localhost:8765`. Dann:
 
 Optional als Befehl installieren: `pip install -e .` → danach einfach `plotart`.
 
+## Am iPad, Handy oder ohne Installation (Web-App)
+
+plotart läuft auch **komplett im Browser** – Python wird dabei per [Pyodide](https://pyodide.org) (WebAssembly) direkt im Browser ausgeführt, es braucht keinen Server.
+
+**Online:** https://lasagnebot100.github.io/SVG/
+
+- Am iPad in Safari öffnen → Teilen → **„Zum Home-Bildschirm“** → startet wie eine App
+- Erster Start lädt Python einmalig (ca. 10 MB), danach aus dem Cache
+- **📤 Teilen** öffnet das iOS-Teilen-Menü → „In Dateien sichern“, AirDrop, Mail …
+
+**Selbst bauen:**
+
+```bash
+python3 tools/build_web.py          # → site/index.html, statisch hostbar (Netlify, eigener Webspace …)
+```
+
+**Veröffentlichung:** Der Workflow `.github/workflows/pages.yml` testet, baut und veröffentlicht die Web-App bei jedem Push auf den Standard-Branch. Einmalig nötig: im Repo unter **Settings → Pages → Source** „GitHub Actions“ auswählen.
+
+**Im lokalen Netz** (ohne Internet): `python3 -m plotart web --host 0.0.0.0` am Computer starten und am iPad `http://<IP-des-Computers>:8765` öffnen.
+
 ## Die Generatoren
 
 | Name | Titel | Beschreibung |

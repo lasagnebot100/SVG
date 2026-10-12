@@ -2,7 +2,11 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="plotart">
+<meta name="theme-color" content="#ecebe7">
 <title>plotart</title>
 <style>
   :root {
@@ -59,6 +63,15 @@
   .toast { position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); background: #1d1d1f; color: #fff;
            padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
   .toast.on { opacity: .92; }
+  .loading { position: fixed; inset: 0; background: rgba(236,235,231,.94); display: none;
+             align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 10;
+             text-align: center; padding: 24px; }
+  .loading.on { display: flex; }
+  .loading .spin { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--accent);
+                   border-radius: 50%; animation: spin 0.9s linear infinite; }
+  .loading small { color: var(--muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  button, input, select { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: #f6f6f4; }
   @media (max-width: 760px) {
     body { flex-direction: column; height: auto; overflow: auto; }
@@ -106,6 +119,8 @@
   <div class="stats" id="stats"></div>
 </main>
 <div class="toast" id="toast"></div>
+<div class="loading" id="loading"><div class="spin"></div><div id="loadingMsg">Wird geladen …</div>
+  <small>Beim ersten Start wird Python einmalig in den Browser geladen (ca. 10 MB).</small></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -212,12 +227,20 @@ function schedule(delay = 220) {
   timer = setTimeout(renderNow, delay);
 }
 
-async function api(path, body) {
-  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const j = await r.json();
-  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
-  return j;
-}
+// Backend: the local Python server, or – in the standalone web app – Python (Pyodide)
+// running in a Web Worker, injected by tools/build_web.py as window.PLOTART_BACKEND.
+const httpBackend = {
+  standalone: false,
+  schema: () => fetch("/api/generators").then(r => r.json()),
+  async call(cmd, body) {
+    const r = await fetch("/api/" + cmd, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+    return j;
+  },
+};
+const backend = window.PLOTART_BACKEND || httpBackend;
+const api = (path, body) => backend.call(path.replace("/api/", ""), body);
 
 function payload() {
   return { generator: state.gen, params: state.params, seed: state.seed, settings: state.settings };
@@ -287,8 +310,20 @@ $("download").onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $("save").onclick = async () => {
-  try { const r = await api("/api/save", payload()); toast("Gespeichert: " + r.path); }
-  catch (e) { toast("Fehler: " + e.message); }
+  if (!backend.standalone) {
+    try { const r = await api("/api/save", payload()); toast("Gespeichert: " + r.path); }
+    catch (e) { toast("Fehler: " + e.message); }
+    return;
+  }
+  // standalone (iPad etc.): share sheet → "In Dateien sichern", AirDrop, Mail …
+  if (!state.svg) return;
+  const file = new File([state.svg], `${state.gen}_${state.seed}.svg`, { type: "image/svg+xml" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: file.name }); }
+    catch (e) { if (e.name !== "AbortError") toast("Teilen fehlgeschlagen: " + e.message); }
+  } else {
+    $("download").click();
+  }
 };
 $("png").onclick = () => {
   const svg = $("sheet").querySelector("svg"); if (!svg) return;
@@ -310,7 +345,16 @@ document.addEventListener("keydown", (e) => {
 });
 
 (async function init() {
-  const r = await fetch("/api/generators").then(r => r.json());
+  if (backend.standalone) {
+    $("save").textContent = "📤 Teilen";
+    $("save").title = "Teilen oder in der Dateien-App sichern";
+    $("loading").classList.add("on");
+    backend.onProgress = (msg) => { $("loadingMsg").textContent = msg; };
+  }
+  let r;
+  try { r = await backend.schema(); }
+  catch (e) { $("loadingMsg").textContent = "Fehler beim Laden: " + e.message; return; }
+  $("loading").classList.remove("on");
   for (const g of r.generators) state.gens[g.name] = g;
   state.settingsSchema = r.settings;
   const saved = restore();

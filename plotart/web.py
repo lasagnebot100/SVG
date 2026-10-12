@@ -9,9 +9,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .api import GLOBAL_PARAMS, new_seed, random_params, render
-from .generators import REGISTRY
-from .svg import to_svg
+from . import bridge
 
 STATIC = Path(__file__).parent / "static"
 OUTPUT_DIR = Path(os.environ.get("PLOTART_OUTPUT", "output"))
@@ -38,11 +36,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self._send((STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/generators":
-            self._json({
-                "generators": [g.to_json() for g in REGISTRY.values()],
-                "settings": [p.to_json() for p in GLOBAL_PARAMS],
-                "output_dir": str(OUTPUT_DIR.resolve()),
-            })
+            self._json({**bridge.schema(), "output_dir": str(OUTPUT_DIR.resolve())})
         else:
             self._send(b"not found", "text/plain", 404)
 
@@ -51,21 +45,17 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             req = json.loads(self.rfile.read(length) or b"{}")
             if self.path == "/api/random":
-                name = req["generator"]
-                self._json({"params": random_params(name, new_seed()), "seed": new_seed()})
-                return
-            if self.path not in ("/api/render", "/api/save"):
-                self._send(b"not found", "text/plain", 404)
-                return
-            d = render(req["generator"], req.get("params"), req.get("seed"), req.get("settings"))
-            svg = to_svg(d)
-            if self.path == "/api/save":
+                self._json(bridge.random_response(req))
+            elif self.path == "/api/render":
+                self._json(bridge.render_response(req))
+            elif self.path == "/api/save":
+                d, svg = bridge.render_request(req)
                 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
                 path = OUTPUT_DIR / f"{d.meta['generator']}_{d.meta['seed']}.svg"
                 path.write_text(svg, encoding="utf-8")
                 self._json({"path": str(path.resolve())})
             else:
-                self._json({"svg": svg, "stats": d.stats(), "seed": d.meta["seed"]})
+                self._send(b"not found", "text/plain", 404)
         except Exception as exc:  # report errors to the UI instead of crashing
             traceback.print_exc()
             self._json({"error": str(exc)}, 500)

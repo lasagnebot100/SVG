@@ -60,5 +60,34 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(ordered[0][0], (11, 10))
 
 
+class WebBuildTests(unittest.TestCase):
+    def test_build_embeds_all_modules(self):
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+        import build_web
+
+        with tempfile.TemporaryDirectory() as tmp:
+            html = build_web.build(Path(tmp), "https://example.org/pyodide/").read_text()
+            self.assertIn("window.PLOTART_BACKEND", html)
+            self.assertIn('"plotart/generators/blocks.py"', html)
+            self.assertIn('"plotart/bridge.py"', html)
+            self.assertNotIn("</script>\n</script>", html)
+            self.assertTrue((Path(tmp) / "manifest.webmanifest").exists())
+
+    def test_bridge_roundtrip(self):
+        import json
+        from plotart import bridge
+
+        out = json.loads(bridge.call_json("render", json.dumps(
+            {"generator": "truchet", "seed": 4, "settings": SMALL})))
+        self.assertTrue(out["svg"].startswith("<?xml"))
+        self.assertEqual(out["seed"], 4)
+        err = json.loads(bridge.call_json("render", json.dumps({"generator": "gibtsnicht"})))
+        self.assertIn("error", err)
+
+
 if __name__ == "__main__":
     unittest.main()
