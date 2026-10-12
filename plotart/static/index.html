@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>plotart</title>
+<style>
+  :root {
+    --bg: #ecebe7; --panel: #ffffff; --ink: #1d1d1f; --muted: #6e6e73;
+    --line: #e2e1dc; --accent: #1f5fbf; --accent-ink: #fff; --paper: #fbfaf7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+         color: var(--ink); background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
+  aside { width: 360px; flex: none; background: var(--panel); border-right: 1px solid var(--line);
+          display: flex; flex-direction: column; }
+  .scroll { overflow-y: auto; padding: 18px 20px 24px; flex: 1; }
+  h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: .02em; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+       margin: 22px 0 10px; font-weight: 600; }
+  .gens { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .gens button { text-align: left; padding: 8px 10px; border: 1px solid var(--line); background: #fff;
+                 border-radius: 8px; cursor: pointer; font: inherit; }
+  .gens button.active { border-color: var(--accent); background: #eef3fc; color: var(--accent); font-weight: 600; }
+  .desc { color: var(--muted); font-size: 12.5px; margin: 10px 0 0; }
+  .field { margin: 10px 0; }
+  .field label { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 4px; }
+  .field label span.v { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .field .help { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select, input[type=number], input[type=text] { width: 100%; padding: 6px 8px; border: 1px solid var(--line);
+    border-radius: 6px; font: inherit; background: #fff; }
+  input[type=color] { width: 44px; height: 28px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; background: #fff; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .btn { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff;
+         cursor: pointer; font: inherit; white-space: nowrap; }
+  .btn:hover { border-color: #c9c8c2; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.small { flex: none; padding: 6px 10px; }
+  .actions { padding: 14px 20px; border-top: 1px solid var(--line); display: grid; gap: 8px;
+             grid-template-columns: 1fr 1fr; }
+  .actions .btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .actions .full { grid-column: 1 / -1; }
+  details summary { cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+                    color: var(--muted); font-weight: 600; margin-top: 22px; }
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 28px; min-height: 0; position: relative; }
+  .sheet { background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 12px 40px rgba(0,0,0,.12);
+           max-width: 100%; max-height: 100%; display: flex; }
+  .sheet svg { width: 100%; height: 100%; display: block; }
+  .busy { position: absolute; top: 14px; right: 18px; font-size: 12px; color: var(--muted); opacity: 0; transition: opacity .2s; }
+  .busy.on { opacity: 1; }
+  .stats { display: flex; gap: 22px; padding: 10px 24px; border-top: 1px solid var(--line); background: var(--panel);
+           font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+  .stats b { color: var(--ink); font-weight: 600; }
+  .err { color: #b3261e; }
+  .toast { position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); background: #1d1d1f; color: #fff;
+           padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .toast.on { opacity: .92; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: #f6f6f4; }
+  @media (max-width: 760px) {
+    body { flex-direction: column; height: auto; overflow: auto; }
+    aside { width: 100%; border-right: 0; }
+    .stage { min-height: 70vh; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <div class="scroll">
+    <h1>plotart</h1>
+    <div class="sub">Generative SVG-Kunst für Stiftplotter · <kbd>Leertaste</kbd> = neue Variante</div>
+
+    <h2>Generator</h2>
+    <div class="gens" id="gens"></div>
+    <p class="desc" id="desc"></p>
+
+    <h2>Zufall</h2>
+    <div class="row">
+      <input type="number" id="seed" min="1" step="1" title="Seed – gleicher Seed ergibt dasselbe Bild">
+      <button class="btn small" id="dice" title="Neuer Seed (Leertaste)">🎲 Neu</button>
+      <button class="btn small" id="shuffle" title="Alle Parameter zufällig wählen">✨ Alles</button>
+    </div>
+
+    <h2>Parameter <button class="btn small" id="reset" style="float:right;margin-top:-6px;font-size:11px">Standard</button></h2>
+    <div id="params"></div>
+
+    <details id="settingsBox">
+      <summary>Papier &amp; Stift</summary>
+      <div id="settings"></div>
+    </details>
+  </div>
+  <div class="actions">
+    <button class="btn primary" id="download">⬇ SVG laden</button>
+    <button class="btn" id="save" title="Speichert im Ordner output/">💾 Speichern</button>
+    <button class="btn full" id="png">PNG-Vorschau herunterladen</button>
+  </div>
+</aside>
+<main>
+  <div class="stage" id="stage">
+    <div class="busy" id="busy">rechnet …</div>
+    <div class="sheet" id="sheet"></div>
+  </div>
+  <div class="stats" id="stats"></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { gens: {}, settingsSchema: [], gen: null, params: {}, settings: {}, seed: 1, svg: "", req: 0 };
+
+const STORE = "plotart-state-v1";
+function persist() {
+  try { localStorage.setItem(STORE, JSON.stringify({ gen: state.gen, settings: state.settings,
+        params: state.allParams, seed: state.seed })); } catch (e) {}
+}
+function restore() {
+  try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
+}
+
+function fmt(p, v) {
+  if (p.kind === "float") {
+    const step = p.step || 0.01;
+    const dec = Math.max(0, Math.min(5, Math.ceil(-Math.log10(step))));
+    return Number(v).toLocaleString("de-AT", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+  return v;
+}
+
+function field(p, value, onChange) {
+  const wrap = document.createElement("div");
+  wrap.className = "field";
+  const label = document.createElement("label");
+  label.innerHTML = `<span>${p.label}</span><span class="v"></span>`;
+  const vspan = label.querySelector(".v");
+  wrap.appendChild(label);
+  let input;
+  if (p.kind === "choice") {
+    input = document.createElement("select");
+    for (const [val, lab] of p.choices) {
+      const o = document.createElement("option"); o.value = val; o.textContent = lab; input.appendChild(o);
+    }
+    input.value = value;
+    input.onchange = () => onChange(input.value);
+  } else if (p.kind === "bool") {
+    input = document.createElement("input"); input.type = "checkbox"; input.checked = !!value;
+    label.querySelector("span").prepend(input); input.style.marginRight = "6px";
+    input.onchange = () => onChange(input.checked);
+    input = null;
+  } else if (p.kind === "color") {
+    input = document.createElement("input"); input.type = "color"; input.value = value;
+    input.oninput = () => { vspan.textContent = input.value; onChange(input.value); };
+    vspan.textContent = value;
+  } else if (p.kind === "int" || p.kind === "float") {
+    input = document.createElement("input"); input.type = "range";
+    input.min = p.min; input.max = p.max; input.step = p.step || (p.kind === "int" ? 1 : 0.01);
+    input.value = value; vspan.textContent = fmt(p, value);
+    input.oninput = () => {
+      const v = p.kind === "int" ? parseInt(input.value) : parseFloat(input.value);
+      vspan.textContent = fmt(p, v); onChange(v);
+    };
+  } else {
+    input = document.createElement("input"); input.type = "text"; input.value = value;
+    input.onchange = () => onChange(input.value);
+  }
+  if (input) wrap.appendChild(input);
+  if (p.help) { const h = document.createElement("div"); h.className = "help"; h.textContent = p.help; wrap.appendChild(h); }
+  return wrap;
+}
+
+function buildGens() {
+  const box = $("gens"); box.innerHTML = "";
+  for (const g of Object.values(state.gens)) {
+    const b = document.createElement("button");
+    b.textContent = g.title; b.dataset.name = g.name;
+    b.onclick = () => selectGen(g.name);
+    box.appendChild(b);
+  }
+}
+
+function buildParams() {
+  const g = state.gens[state.gen];
+  const box = $("params"); box.innerHTML = "";
+  for (const p of g.params) {
+    box.appendChild(field(p, state.params[p.name], (v) => { state.params[p.name] = v; schedule(); }));
+  }
+}
+
+function buildSettings() {
+  const box = $("settings"); box.innerHTML = "";
+  for (const p of state.settingsSchema) {
+    box.appendChild(field(p, state.settings[p.name], (v) => { state.settings[p.name] = v; schedule(); }));
+  }
+}
+
+function selectGen(name) {
+  state.gen = name;
+  state.allParams = state.allParams || {};
+  state.params = state.allParams[name] || Object.fromEntries(state.gens[name].params.map(p => [p.name, p.default]));
+  state.allParams[name] = state.params;
+  document.querySelectorAll("#gens button").forEach(b => b.classList.toggle("active", b.dataset.name === name));
+  $("desc").textContent = state.gens[name].description;
+  buildParams();
+  schedule(0);
+}
+
+let timer = null;
+function schedule(delay = 220) {
+  clearTimeout(timer);
+  timer = setTimeout(renderNow, delay);
+}
+
+async function api(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function payload() {
+  return { generator: state.gen, params: state.params, seed: state.seed, settings: state.settings };
+}
+
+async function renderNow() {
+  const id = ++state.req;
+  $("seed").value = state.seed;
+  $("busy").classList.add("on");
+  persist();
+  try {
+    const res = await api("/api/render", payload());
+    if (id !== state.req) return;
+    state.svg = res.svg;
+    $("sheet").innerHTML = res.svg.replace(/^<\?xml[^>]*>\s*/, "");
+    fitSheet();
+    const s = res.stats;
+    const minutes = s.minutes >= 60 ? `${Math.floor(s.minutes / 60)} h ${Math.round(s.minutes % 60)} min` : `${s.minutes.toLocaleString("de-AT")} min`;
+    $("stats").innerHTML =
+      `<span>Linie <b>${(s.draw_mm / 1000).toLocaleString("de-AT", {maximumFractionDigits: 1})} m</b></span>` +
+      `<span>Leerfahrt <b>${(s.travel_mm / 1000).toLocaleString("de-AT", {maximumFractionDigits: 1})} m</b></span>` +
+      `<span>Pfade (Stift absetzen) <b>${s.paths.toLocaleString("de-AT")}</b></span>` +
+      `<span>Stifte <b>${s.layers}</b></span>` +
+      `<span>Plotzeit ca. <b>${minutes}</b></span>` +
+      `<span>Seed <b>${res.seed}</b></span>`;
+  } catch (e) {
+    if (id === state.req) $("stats").innerHTML = `<span class="err">Fehler: ${e.message}</span>`;
+  } finally {
+    if (id === state.req) $("busy").classList.remove("on");
+  }
+}
+
+function fitSheet() {
+  const svg = $("sheet").querySelector("svg");
+  if (!svg) return;
+  const vb = svg.viewBox.baseVal;
+  const stage = $("stage");
+  const cw = stage.clientWidth - 56, ch = stage.clientHeight - 56;
+  const s = Math.min(cw / vb.width, ch / vb.height);
+  $("sheet").style.width = (vb.width * s) + "px";
+  $("sheet").style.height = (vb.height * s) + "px";
+}
+window.addEventListener("resize", fitSheet);
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2600);
+}
+
+function newSeed() { state.seed = Math.floor(Math.random() * 999999) + 1; schedule(0); }
+
+$("dice").onclick = newSeed;
+$("seed").onchange = () => { state.seed = parseInt($("seed").value) || 1; schedule(0); };
+$("shuffle").onclick = async () => {
+  const r = await api("/api/random", { generator: state.gen });
+  Object.assign(state.params, r.params); state.seed = r.seed; buildParams(); schedule(0);
+};
+$("reset").onclick = () => {
+  state.params = Object.fromEntries(state.gens[state.gen].params.map(p => [p.name, p.default]));
+  state.allParams[state.gen] = state.params; buildParams(); schedule(0);
+};
+$("download").onclick = () => {
+  if (!state.svg) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([state.svg], { type: "image/svg+xml" }));
+  a.download = `${state.gen}_${state.seed}.svg`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("save").onclick = async () => {
+  try { const r = await api("/api/save", payload()); toast("Gespeichert: " + r.path); }
+  catch (e) { toast("Fehler: " + e.message); }
+};
+$("png").onclick = () => {
+  const svg = $("sheet").querySelector("svg"); if (!svg) return;
+  const vb = svg.viewBox.baseVal, scale = 8;   // 8 px per mm ≈ 200 dpi
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = vb.width * scale; c.height = vb.height * scale;
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#fbfaf7"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const a = document.createElement("a"); a.href = c.toDataURL("image/png");
+    a.download = `${state.gen}_${state.seed}.png`; a.click();
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(state.svg);
+};
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+    e.preventDefault(); newSeed();
+  }
+});
+
+(async function init() {
+  const r = await fetch("/api/generators").then(r => r.json());
+  for (const g of r.generators) state.gens[g.name] = g;
+  state.settingsSchema = r.settings;
+  const saved = restore();
+  state.settings = Object.fromEntries(r.settings.map(p => [p.name, p.default]));
+  Object.assign(state.settings, saved.settings || {});
+  state.allParams = {};
+  for (const [name, vals] of Object.entries(saved.params || {})) {
+    if (!state.gens[name]) continue;
+    const defaults = Object.fromEntries(state.gens[name].params.map(p => [p.name, p.default]));
+    state.allParams[name] = Object.assign(defaults, vals);
+  }
+  state.seed = saved.seed || 7;
+  buildGens(); buildSettings();
+  selectGen(state.gens[saved.gen] ? saved.gen : r.generators[0].name);
+})();
+</script>
+</body>
+</html>
