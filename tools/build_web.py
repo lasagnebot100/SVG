@@ -1,6 +1,6 @@
 """Build the standalone web app (no server needed – Python runs in the browser via Pyodide).
 
-    python3 tools/build_web.py                 # → site/index.html (+ manifest, icons)
+    python3 tools/build_web.py                 # → site/ (Studio, Generatoren, backend.js, vendor/)
     python3 tools/build_web.py --out public --pyodide-url https://…/pyodide/v0.26.4/full/
 
 The result is a static folder that can be hosted anywhere (GitHub Pages, Netlify, …)
@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PKG = ROOT / "plotart"
+STATIC = PKG / "static"
 DEFAULT_PYODIDE = "https://cdn.jsdelivr.net/npm/pyodide@0.26.4/"
+PAGES = {"studio.html": "index.html", "generators.html": "generatoren.html"}
 
 WORKER_JS = r"""
 let py = null;
@@ -34,6 +37,14 @@ self.onmessage = async (e) => {
       py.runPython("import sys; sys.path.insert(0, '/home/pyodide'); from plotart import bridge");
       self.postMessage({ id, result: true });
     } else {
+      if (arg.cmd.startsWith("sketch_")) {
+        // load numpy, Pillow, … automatically when a sketch imports them
+        const source = JSON.parse(arg.body).source || "";
+        await py.loadPackagesFromImports(source, {
+          messageCallback: (msg) => self.postMessage({ progress: msg }),
+          errorCallback: (msg) => self.postMessage({ progress: msg }),
+        });
+      }
       py.globals.set("_cmd", arg.cmd);
       py.globals.set("_arg", arg.body);
       self.postMessage({ id, result: py.runPython("bridge.call_json(_cmd, _arg)") });
@@ -47,30 +58,34 @@ self.onmessage = async (e) => {
 BACKEND_JS = r"""
 window.PLOTART_BACKEND = (() => {
   const be = { standalone: true, onProgress: null };
-  const worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })));
   const pending = new Map();
-  let nextId = 1;
-  worker.onmessage = (e) => {
-    const m = e.data;
-    if (m.progress) { if (be.onProgress) be.onProgress(m.progress); return; }
-    const p = pending.get(m.id);
-    pending.delete(m.id);
-    if (p) m.error ? p.reject(new Error(m.error)) : p.resolve(m.result);
-  };
-  worker.onerror = (e) => {
-    const msg = e.message || "Worker-Fehler";
-    for (const p of pending.values()) p.reject(new Error(msg));
-    pending.clear();
-    if (be.onProgress) be.onProgress("Fehler: " + msg);
-  };
-  const send = (cmd, arg) => new Promise((resolve, reject) => {
-    const id = nextId++;
-    pending.set(id, { resolve, reject });
-    worker.postMessage({ id, cmd, arg });
-  });
-  // absolute URL: relative paths would resolve against the worker's blob: URL
-  const ready = send("init", { url: new URL(PYODIDE_URL, location.href).href, files: FILES });
+  let nextId = 1, worker = null, ready = null;
 
+  function start() {
+    worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })));
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.progress) { if (be.onProgress) be.onProgress(m.progress); return; }
+      const p = pending.get(m.id);
+      pending.delete(m.id);
+      if (p) m.error ? p.reject(new Error(m.error)) : p.resolve(m.result);
+    };
+    worker.onerror = (e) => {
+      const msg = e.message || "Worker-Fehler";
+      for (const p of pending.values()) p.reject(new Error(msg));
+      pending.clear();
+      if (be.onProgress) be.onProgress("Fehler: " + msg);
+    };
+    // absolute URL: relative paths would resolve against the worker's blob: URL
+    ready = send("init", { url: new URL(PYODIDE_URL, location.href).href, files: FILES });
+  }
+  function send(cmd, arg) {
+    return new Promise((resolve, reject) => {
+      const id = nextId++;
+      pending.set(id, { resolve, reject });
+      worker.postMessage({ id, cmd, arg });
+    });
+  }
   async function raw(cmd, body) {
     await ready;
     const out = JSON.parse(await send("call", { cmd, body: JSON.stringify(body) }));
@@ -78,21 +93,31 @@ window.PLOTART_BACKEND = (() => {
     return out;
   }
   // while a render is running keep only the newest request (sliders fire many)
-  let busy = false, queued = null;
-  async function render(body) {
-    if (busy) {
-      if (queued) queued.reject(new Error("veraltet"));
-      return new Promise((resolve, reject) => { queued = { body, resolve, reject }; });
+  const lanes = {};
+  async function coalesced(cmd, body) {
+    const lane = lanes[cmd] || (lanes[cmd] = { busy: false, queued: null });
+    if (lane.busy) {
+      if (lane.queued) lane.queued.reject(new Error("veraltet"));
+      return new Promise((resolve, reject) => { lane.queued = { body, resolve, reject }; });
     }
-    busy = true;
-    try { return await raw("render", body); }
+    lane.busy = true;
+    try { return await raw(cmd, body); }
     finally {
-      busy = false;
-      if (queued) { const q = queued; queued = null; render(q.body).then(q.resolve, q.reject); }
+      lane.busy = false;
+      if (lane.queued) { const q = lane.queued; lane.queued = null; coalesced(cmd, q.body).then(q.resolve, q.reject); }
     }
   }
   be.schema = () => raw("schema", {});
-  be.call = (cmd, body) => cmd === "render" ? render(body) : raw(cmd, body);
+  be.call = (cmd, body) => (cmd === "render" || cmd === "sketch_run") ? coalesced(cmd, body) : raw(cmd, body);
+  // stop a runaway sketch: kill the Python worker and start a fresh one
+  be.cancel = () => {
+    worker.terminate();
+    for (const p of pending.values()) p.reject(new Error("Abgebrochen"));
+    pending.clear();
+    for (const lane of Object.values(lanes)) { lane.busy = false; lane.queued = null; }
+    start();
+  };
+  start();
   return be;
 })();
 """
@@ -108,7 +133,7 @@ def python_files() -> dict[str, str]:
 
 
 def script_json(obj) -> str:
-    """JSON that is safe inside a <script> element."""
+    """JSON that is safe inside JavaScript (also inside a <script> element)."""
     return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
 
 
@@ -141,7 +166,6 @@ def build(out: Path, pyodide_url: str) -> Path:
     if not pyodide_url.endswith("/"):
         pyodide_url += "/"
     out.mkdir(parents=True, exist_ok=True)
-    html = (PKG / "static" / "index.html").read_text(encoding="utf-8")
 
     icons = make_icons(out)
     head = ['<link rel="manifest" href="manifest.webmanifest">']
@@ -149,7 +173,7 @@ def build(out: Path, pyodide_url: str) -> Path:
         head.append('<link rel="apple-touch-icon" href="apple-touch-icon.png">')
         head.append('<link rel="icon" href="icon-512.png">')
     manifest = {
-        "name": "plotart – generative Plotter-Kunst",
+        "name": "plotart – generative Kunst mit Python",
         "short_name": "plotart",
         "start_url": ".",
         "display": "standalone",
@@ -160,22 +184,26 @@ def build(out: Path, pyodide_url: str) -> Path:
     (out / "manifest.webmanifest").write_text(json.dumps(manifest, ensure_ascii=False, indent=2),
                                               encoding="utf-8")
 
-    inject = (
-        "<script>\n"
+    backend = (
         f"const PYODIDE_URL = {script_json(pyodide_url)};\n"
         f"const FILES = {script_json(python_files())};\n"
         f"const WORKER_SRC = {script_json(WORKER_JS)};\n"
         f"{BACKEND_JS}"
-        "</script>\n"
     )
-    marker = "<script>\nconst $ ="
-    if marker not in html or "</head>" not in html:
-        raise SystemExit("index.html hat nicht die erwartete Struktur")
-    html = html.replace("</head>", "\n".join(head) + "\n</head>", 1)
-    html = html.replace(marker, inject + marker, 1)
-    target = out / "index.html"
-    target.write_text(html, encoding="utf-8")
-    return target
+    (out / "backend.js").write_text(backend, encoding="utf-8")
+
+    for src, dst in PAGES.items():
+        html = (STATIC / src).read_text(encoding="utf-8")
+        if '<script src="backend.js"></script>' not in html or "</head>" not in html:
+            raise SystemExit(f"{src} hat nicht die erwartete Struktur")
+        html = html.replace("</head>", "\n".join(head) + "\n</head>", 1)
+        (out / dst).write_text(html, encoding="utf-8")
+
+    vendor = out / "vendor"
+    vendor.mkdir(exist_ok=True)
+    for f in (STATIC / "vendor").iterdir():
+        shutil.copy2(f, vendor / f.name)
+    return out / "index.html"
 
 
 def main():
@@ -184,7 +212,8 @@ def main():
     ap.add_argument("--pyodide-url", default=DEFAULT_PYODIDE, help="Basis-URL der Pyodide-Dateien")
     args = ap.parse_args()
     target = build(Path(args.out), args.pyodide_url)
-    print(f"✓ {target} ({target.stat().st_size / 1024:.0f} KB)")
+    size = sum(f.stat().st_size for f in target.parent.rglob("*") if f.is_file())
+    print(f"✓ {target.parent} ({size / 1024:.0f} KB)")
 
 
 if __name__ == "__main__":

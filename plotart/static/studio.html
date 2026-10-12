@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="plotart">
+<meta name="theme-color" content="#ecebe7">
+<title>plotart Studio</title>
+<link rel="stylesheet" href="vendor/codemirror.css">
+<style>
+  :root {
+    --bg: #ecebe7; --panel: #ffffff; --ink: #1d1d1f; --muted: #6e6e73; --line: #e2e1dc;
+    --accent: #1f5fbf; --accent-soft: #eef3fc; --err: #b3261e; --err-soft: #fdecea; --ok: #1e7a3c;
+    --paper: #fbfaf7; --code-bg: #fcfcfa;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink);
+         background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel);
+           border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 8px 0 2px; white-space: nowrap; }
+  header h1 span { color: var(--muted); font-weight: 500; }
+  .sep { width: 1px; height: 24px; background: var(--line); margin: 0 2px; }
+  .grow { flex: 1; }
+  .btn { padding: 6px 11px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer;
+         font: inherit; white-space: nowrap; color: var(--ink); text-decoration: none; display: inline-flex;
+         align-items: center; gap: 5px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .btn:hover { border-color: #c9c8c2; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  select, input[type=number], input[type=text], input[type=search] { padding: 6px 8px; border: 1px solid var(--line);
+         border-radius: 7px; font: inherit; background: #fff; color: var(--ink); }
+  #seed { width: 92px; }
+  #examples { max-width: 210px; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 1fr) minmax(320px, 1.15fr) 270px; }
+  .col { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+  .editor-col { border-right: 1px solid var(--line); background: var(--code-bg); }
+  #editorWrap { flex: 1; min-height: 0; position: relative; }
+  #editorWrap > textarea { width: 100%; height: 100%; border: 0; padding: 12px; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; resize: none; background: var(--code-bg); }
+  .CodeMirror { height: 100%; font: 13px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code-bg); }
+  .CodeMirror-gutters { background: var(--code-bg); border-right: 1px solid var(--line); }
+  .CodeMirror-activeline-background { background: rgba(31, 95, 191, .05); }
+  .cm-error-line { background: var(--err-soft) !important; }
+  .cm-s-default .cm-keyword { color: #a626a4; } .cm-s-default .cm-def { color: #1f5fbf; font-weight: 600; }
+  .cm-s-default .cm-string { color: #50a14f; } .cm-s-default .cm-number { color: #c75a00; }
+  .cm-s-default .cm-comment { color: #9a9a9a; font-style: italic; } .cm-s-default .cm-builtin { color: #0184bc; }
+  .cm-s-default .cm-variable-2 { color: #986801; }
+  #console { height: 170px; border-top: 1px solid var(--line); background: #fff; overflow: auto; padding: 8px 12px;
+             font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; flex: none; }
+  #console .err { color: var(--err); } #console .ok { color: var(--ok); } #console .muted { color: var(--muted); }
+  .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 22px; position: relative; }
+  .sheet { background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 12px 40px rgba(0,0,0,.12); display: flex; }
+  .sheet svg { width: 100%; height: 100%; display: block; }
+  .sheet.stale { opacity: .45; transition: opacity .2s; }
+  .status { padding: 7px 14px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted);
+            display: flex; gap: 14px; flex-wrap: wrap; }
+  .status b { color: var(--ink); font-weight: 600; }
+  .busy { position: absolute; top: 10px; right: 14px; font-size: 12px; color: var(--muted); opacity: 0; transition: opacity .2s; }
+  .busy.on { opacity: 1; }
+  .busy .btn { font-size: 11px; padding: 2px 8px; margin-left: 6px; }
+  .side { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 4px 16px 20px; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px;
+       font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  h2 .btn { font-size: 11px; padding: 3px 8px; text-transform: none; letter-spacing: 0; }
+  .field { margin: 9px 0; }
+  .field label { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; margin-bottom: 3px; }
+  .field label .v { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .field .help { color: var(--muted); font-size: 11.5px; }
+  .field select, .field input[type=number] { width: 100%; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .empty { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+  .empty code { background: #f3f2ee; padding: 1px 4px; border-radius: 4px; font-size: 11.5px; }
+  /* help drawer */
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--panel); z-index: 20;
+            box-shadow: -10px 0 40px rgba(0,0,0,.15); transform: translateX(105%); transition: transform .2s; display: flex; flex-direction: column; }
+  .drawer.on { transform: none; }
+  .drawer header { position: sticky; top: 0; }
+  .drawer .list { overflow-y: auto; padding: 0 16px 24px; flex: 1; }
+  .drawer h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 6px; }
+  .ref { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+  .ref:hover { background: var(--accent-soft); }
+  .ref code { font: 12.5px ui-monospace, Menlo, Consolas, monospace; color: var(--accent); }
+  .ref code span { color: var(--muted); }
+  .ref div { font-size: 12px; color: var(--muted); }
+  .toast { position: fixed; bottom: 54px; left: 50%; transform: translateX(-50%); background: #1d1d1f; color: #fff;
+           padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 30; }
+  .toast.on { opacity: .92; }
+  .loading { position: fixed; inset: 0; background: rgba(236,235,231,.95); display: none; align-items: center; justify-content: center;
+             flex-direction: column; gap: 14px; z-index: 40; text-align: center; padding: 24px; }
+  .loading.on { display: flex; }
+  .loading .spin { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; }
+  .loading small { color: var(--muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: #f6f6f4; }
+  @media (max-width: 1150px) {
+    main { grid-template-columns: minmax(320px, 1fr) minmax(300px, 1fr); grid-template-rows: 1fr auto; }
+    .side { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 34vh; }
+  }
+  @media (max-width: 760px) {
+    body { overflow: auto; height: auto; }
+    main { display: flex; flex-direction: column; }
+    #editorWrap { height: 55vh; flex: none; }
+    .stage { min-height: 70vh; }
+    .side { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>plotart <span>Studio</span></h1>
+  <select id="examples" title="Beispiel-Skizze laden"><option value="">Beispiele …</option></select>
+  <span class="sep"></span>
+  <button class="btn primary" id="run" title="Ausführen (Strg/⌘ + Enter)">▶ Ausführen</button>
+  <button class="btn" id="live" title="Bei jeder Änderung automatisch ausführen">Live</button>
+  <span class="sep"></span>
+  <input type="number" id="seed" min="1" step="1" title="Seed – gleicher Seed = gleiches Bild">
+  <button class="btn" id="dice" title="Neuer Seed (Strg/⌘ + Umschalt + Enter)">🎲</button>
+  <span class="grow"></span>
+  <button class="btn" id="expSvg" title="Farb-SVG herunterladen">SVG</button>
+  <button class="btn" id="expPng" title="PNG in der eingestellten Auflösung">PNG</button>
+  <button class="btn" id="expPlot" title="Nur Linien, optimiert, eine Ebene pro Farbe">Plotter</button>
+  <span class="sep"></span>
+  <button class="btn" id="savePy" title="Skizze als .py speichern (Strg/⌘ + S)">💾 .py</button>
+  <button class="btn" id="openPy" title="Skizze (.py) öffnen">📂</button>
+  <input type="file" id="fileIn" accept=".py,text/x-python,text/plain" hidden>
+  <button class="btn" id="help" title="Alle Funktionen">? Hilfe</button>
+  <a class="btn" href="generatoren.html" title="Fertige Generatoren mit Reglern">Generatoren</a>
+</header>
+<main>
+  <section class="col editor-col">
+    <div id="editorWrap"><textarea id="code" spellcheck="false"></textarea></div>
+    <div id="console"><span class="muted">Konsole – Ausgaben von print() und Fehler erscheinen hier.</span></div>
+  </section>
+  <section class="col">
+    <div class="stage" id="stage"><div class="busy" id="busy"><span id="busyMsg">rechnet …</span> <button class="btn" id="cancel" hidden>✕ Abbrechen</button></div><div class="sheet" id="sheet"></div></div>
+    <div class="status" id="status">–</div>
+  </section>
+  <aside class="side">
+    <h2>Parameter <span><button class="btn" id="shuffleParams" title="Alle Regler würfeln">✨</button>
+      <button class="btn" id="resetParams">Standard</button></span></h2>
+    <div id="params"><p class="empty">Regler entstehen automatisch aus deiner Skizze, z. B.<br>
+      <code>n = param("Anzahl", 40, 1, 200)</code></p></div>
+    <h2>Export</h2>
+    <div class="field"><label>PNG-Auflösung</label>
+      <select id="pngScale"></select></div>
+    <div class="field"><label>Stiftbreite für Plotter (mm)</label>
+      <input type="number" id="penWidth" min="0.05" max="3" step="0.05" value="0.45"></div>
+  </aside>
+</main>
+<div class="drawer" id="drawer">
+  <header><b style="flex:1">Funktionen</b><input type="search" id="refSearch" placeholder="Suchen …" style="width:55%">
+    <button class="btn" id="closeHelp">✕</button></header>
+  <div class="list" id="refList"></div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="loading" id="loading"><div class="spin"></div><div id="loadingMsg">Wird geladen …</div>
+  <small>Beim ersten Start wird Python einmalig in den Browser geladen (ca. 10 MB).</small></div>
+
+<script src="vendor/codemirror.js"></script>
+<script src="backend.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const TOKEN = (() => {
+  const q = new URLSearchParams(location.search).get("token");
+  try { if (q) sessionStorage.setItem("plotart-token", q); return q || sessionStorage.getItem("plotart-token") || ""; }
+  catch (e) { return q || ""; }
+})();
+const httpBackend = {
+  standalone: false,
+  async call(cmd, body) {
+    const r = await fetch("/api/" + cmd, { method: "POST",
+      headers: { "Content-Type": "application/json", "X-Plotart-Token": TOKEN }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+    return j;
+  },
+};
+const backend = window.PLOTART_BACKEND || httpBackend;
+
+const STORE = "plotart-studio-v1";
+const state = { seed: 1, params: {}, specs: [], live: true, svg: "", width: 800, height: 800, unit: "px",
+                req: 0, reference: [], examples: [], errorLine: null };
+
+function load() { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } }
+function persist() {
+  try { localStorage.setItem(STORE, JSON.stringify({ source: getCode(), seed: state.seed, params: state.params, live: state.live })); }
+  catch (e) {}
+}
+
+// ------------------------------------------------------------------ editor
+let cm = null;
+function getCode() { return cm ? cm.getValue() : $("code").value; }
+function setCode(src) { if (cm) { cm.setValue(src); cm.clearHistory(); } else $("code").value = src; }
+
+function initEditor() {
+  if (!window.CodeMirror) {          // fallback: plain textarea
+    $("code").addEventListener("input", onCodeChange);
+    return;
+  }
+  cm = CodeMirror.fromTextArea($("code"), {
+    mode: "python", lineNumbers: true, indentUnit: 4, tabSize: 4, indentWithTabs: false,
+    matchBrackets: true, autoCloseBrackets: true, styleActiveLine: true, lineWrapping: false,
+    extraKeys: {
+      "Ctrl-Enter": () => run(0), "Cmd-Enter": () => run(0),
+      "Shift-Ctrl-Enter": newSeed, "Shift-Cmd-Enter": newSeed,
+      "Ctrl-S": savePy, "Cmd-S": savePy,
+      "Ctrl-/": "toggleComment", "Cmd-/": "toggleComment",
+      "Ctrl-Space": "autocomplete",
+      Tab: (c) => c.somethingSelected() ? c.indentSelection("add") : c.replaceSelection("    ", "end"),
+      "Shift-Tab": (c) => c.indentSelection("subtract"),
+    },
+    hintOptions: { hint: hintApi, completeSingle: false },
+  });
+  cm.on("change", onCodeChange);
+}
+
+const PY_WORDS = ["for", "in", "range", "if", "elif", "else", "while", "def", "return", "import", "from",
+  "and", "or", "not", "True", "False", "None", "with", "lambda", "len", "list", "int", "float", "print",
+  "enumerate", "zip", "abs", "min", "max", "round", "sum", "sorted", "numpy", "np"];
+function hintApi(editor) {
+  const cur = editor.getCursor(), token = editor.getTokenAt(cur);
+  const start = token.string.match(/^\w/) ? token.start : cur.ch;
+  const word = token.string.slice(0, cur.ch - token.start).replace(/\W/g, "");
+  const names = new Set(PY_WORDS);
+  for (const g of state.reference) for (const e of g.entries) names.add(e.name);
+  const list = [...names].filter(n => n.startsWith(word)).sort();
+  return { list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, token.end) };
+}
+
+let codeTimer = null;
+function onCodeChange() {
+  clearErrorLine();
+  persist();
+  if (state.live) { clearTimeout(codeTimer); codeTimer = setTimeout(() => run(0), 550); }
+}
+function clearErrorLine() {
+  if (cm && state.errorLine != null) { cm.removeLineClass(state.errorLine, "background", "cm-error-line"); }
+  state.errorLine = null;
+}
+function markErrorLine(line) {
+  clearErrorLine();
+  if (cm && line) { state.errorLine = line - 1; cm.addLineClass(line - 1, "background", "cm-error-line"); }
+}
+
+// ------------------------------------------------------------------ running
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+
+let runTimer = null;
+function run(delay = 0) {
+  clearTimeout(runTimer);
+  runTimer = setTimeout(runNow, delay);
+}
+
+let cancelTimer = null;
+function setBusy(on) {
+  $("busy").classList.toggle("on", on);
+  clearTimeout(cancelTimer);
+  $("cancel").hidden = true;
+  if (on) {
+    $("busyMsg").textContent = "rechnet …";
+    if (backend.cancel) cancelTimer = setTimeout(() => { $("cancel").hidden = false; }, 4000);
+  }
+}
+$("cancel").onclick = () => {
+  backend.cancel();
+  setBusy(false);
+  $("console").innerHTML = '<span class="err">Abgebrochen. Python wird neu gestartet …</span>';
+};
+
+async function runNow() {
+  const id = ++state.req;
+  $("seed").value = state.seed;
+  setBusy(true);
+  $("sheet").classList.add("stale");
+  persist();
+  try {
+    const res = await backend.call("sketch_run", { source: getCode(), params: state.params, seed: state.seed });
+    if (id !== state.req) return;
+    showLog(res);
+    // on errors keep the previous sliders (params after the error line were never declared)
+    if (res.sketch_error) { markErrorLine(res.sketch_error.line); return; }
+    buildParams(res.params);
+    Object.assign(state, { svg: res.svg, width: res.width, height: res.height, unit: res.unit });
+    $("sheet").innerHTML = res.svg.replace(/^<\?xml[^>]*>\s*/, "");
+    $("sheet").classList.remove("stale");
+    fitSheet();
+    updatePngScales();
+    const dims = `${fmtNum(res.width)} × ${fmtNum(res.height)} ${res.unit}`;
+    $("status").innerHTML = `<span>Leinwand <b>${dims}</b></span><span>Formen <b>${res.items.toLocaleString("de-AT")}</b></span>` +
+      `<span>Zeit <b>${fmtNum(res.ms)} ms</b></span><span>Seed <b>${res.seed}</b></span>`;
+  } catch (e) {
+    if (id !== state.req || e.message === "veraltet" || e.message === "Abgebrochen") return;
+    $("console").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  } finally {
+    if (id === state.req) setBusy(false);
+  }
+}
+
+function fmtNum(v) { return Number(v).toLocaleString("de-AT", { maximumFractionDigits: 1 }); }
+
+function showLog(res) {
+  let html = "";
+  if (res.log) html += esc(res.log);
+  if (res.sketch_error) {
+    const e = res.sketch_error;
+    html += `<span class="err">${e.line ? "Zeile " + e.line + ": " : ""}${esc(e.message)}</span>\n`;
+    if (e.trace) html += `<span class="muted">${esc(e.trace)}</span>`;
+  } else {
+    html += `<span class="ok">✓ fertig in ${fmtNum(res.ms)} ms</span>`;
+  }
+  $("console").innerHTML = html;
+  $("console").scrollTop = $("console").scrollHeight;
+}
+
+function fitSheet() {
+  const svg = $("sheet").querySelector("svg");
+  if (!svg) return;
+  const vb = svg.viewBox.baseVal, stage = $("stage");
+  const cw = stage.clientWidth - 44, ch = stage.clientHeight - 44;
+  const s = Math.min(cw / vb.width, ch / vb.height);
+  $("sheet").style.width = (vb.width * s) + "px";
+  $("sheet").style.height = (vb.height * s) + "px";
+}
+window.addEventListener("resize", fitSheet);
+
+// ------------------------------------------------------------------ parameters
+function fmtVal(p, v) {
+  if (p.kind === "float") {
+    const dec = Math.max(0, Math.min(5, Math.ceil(-Math.log10(p.step || 0.01))));
+    return Number(v).toLocaleString("de-AT", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+  return v;
+}
+
+function buildParams(specs) {
+  const sig = JSON.stringify(specs);
+  if (sig === state.specSig) return;          // unchanged → keep the DOM (slider focus)
+  state.specSig = sig;
+  state.specs = specs;
+  const box = $("params");
+  box.innerHTML = "";
+  if (!specs.length) {
+    box.innerHTML = '<p class="empty">Regler entstehen automatisch aus deiner Skizze, z. B.<br><code>n = param("Anzahl", 40, 1, 200)</code></p>';
+    return;
+  }
+  for (const p of specs) {
+    const value = p.name in state.params ? state.params[p.name] : p.default;
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    const label = document.createElement("label");
+    label.innerHTML = `<span></span><span class="v"></span>`;
+    label.firstChild.textContent = p.label;
+    const v = label.querySelector(".v");
+    wrap.appendChild(label);
+    let input;
+    const set = (val) => { state.params[p.name] = val; persist(); run(120); };
+    if (p.kind === "choice") {
+      input = document.createElement("select");
+      for (const [val, lab] of p.choices) { const o = new Option(lab, val); input.add(o); }
+      input.value = value; input.onchange = () => set(input.value);
+    } else if (p.kind === "bool") {
+      input = document.createElement("input"); input.type = "checkbox"; input.checked = !!value;
+      input.style.marginRight = "6px"; label.firstChild.prepend(input); input.onchange = () => set(input.checked); input = null;
+    } else if (p.kind === "color") {
+      input = document.createElement("input"); input.type = "color"; input.value = value; v.textContent = value;
+      input.oninput = () => { v.textContent = input.value; set(input.value); };
+    } else if (p.kind === "int" || p.kind === "float") {
+      input = document.createElement("input"); input.type = "range";
+      input.min = p.min; input.max = p.max; input.step = p.step || (p.kind === "int" ? 1 : 0.01); input.value = value;
+      v.textContent = fmtVal(p, value);
+      input.oninput = () => { const x = p.kind === "int" ? parseInt(input.value) : parseFloat(input.value);
+        v.textContent = fmtVal(p, x); set(x); };
+    } else {
+      input = document.createElement("input"); input.type = "text"; input.value = value; input.onchange = () => set(input.value);
+    }
+    if (input) wrap.appendChild(input);
+    if (p.help) { const h = document.createElement("div"); h.className = "help"; h.textContent = p.help; wrap.appendChild(h); }
+    box.appendChild(wrap);
+  }
+}
+
+function randomParamValue(p) {
+  if (p.kind === "bool") return Math.random() < 0.5;
+  if (p.kind === "choice") return p.choices[Math.floor(Math.random() * p.choices.length)][0];
+  if (p.kind === "int") return Math.round(p.min + Math.random() * (p.max - p.min));
+  if (p.kind === "float") { const st = p.step || 0.01; return +(Math.round((p.min + Math.random() * (p.max - p.min)) / st) * st).toFixed(6); }
+  return p.default;
+}
+
+// ------------------------------------------------------------------ export
+function updatePngScales() {
+  const sel = $("pngScale"), prev = sel.value;
+  const opts = state.unit === "mm"
+    ? [[150 / 25.4, "150 dpi"], [300 / 25.4, "300 dpi (Druck)"], [600 / 25.4, "600 dpi"]]
+    : [[1, "1× (Originalgröße)"], [2, "2×"], [4, "4×"]];
+  const sig = state.unit;
+  if (sel.dataset.unit === sig) return;
+  sel.dataset.unit = sig; sel.innerHTML = "";
+  for (const [s, lab] of opts) {
+    const px = `${Math.round(state.width * s)} × ${Math.round(state.height * s)} px`;
+    sel.add(new Option(`${lab} – ${px}`, s));
+  }
+  sel.selectedIndex = state.unit === "mm" ? 1 : 1;
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+
+function fileName(ext) { return `skizze_${state.seed}.${ext}`; }
+
+async function deliver(blob, name) {
+  // iPad & co: share sheet ("In Dateien sichern"); desktop: normal download
+  const file = new File([blob], name, { type: blob.type });
+  if (backend.standalone && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2600);
+}
+
+$("expSvg").onclick = () => state.svg && deliver(new Blob([state.svg], { type: "image/svg+xml" }), fileName("svg"));
+
+$("expPng").onclick = () => {
+  if (!state.svg) return;
+  const s = parseFloat($("pngScale").value) || 1;
+  const w = Math.round(state.width * s), h = Math.round(state.height * s);
+  if (w * h > 16384 * 16384 / 2) { toast("Zu groß für den Browser – kleinere Auflösung wählen"); return; }
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    c.getContext("2d").drawImage(img, 0, 0, w, h);
+    try { c.toBlob((b) => b ? deliver(b, fileName("png")) : toast("PNG konnte nicht erzeugt werden"), "image/png"); }
+    catch (e) { toast("PNG-Export blockiert: " + e.message); }
+  };
+  img.onerror = () => toast("SVG konnte nicht gerastert werden");
+  // explicit pixel size so the browser rasterises at full resolution
+  const svg = state.svg.replace(/<svg([^>]*?)width="[^"]*"([^>]*?)height="[^"]*"/, `<svg$1width="${w}"$2height="${h}"`);
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+};
+
+$("expPlot").onclick = async () => {
+  try {
+    const r = await backend.call("sketch_plotter", { source: getCode(), params: state.params, seed: state.seed,
+                                                      pen_width: parseFloat($("penWidth").value) || 0.45 });
+    if (r.sketch_error) { toast("Fehler in der Skizze"); return; }
+    await deliver(new Blob([r.svg], { type: "image/svg+xml" }), `skizze_${state.seed}_plotter.svg`);
+    toast(`Plotter-SVG: ${r.stats.paths} Pfade, ${fmtNum(r.stats.draw_mm / 1000)} m Linie, ca. ${fmtNum(r.stats.minutes)} min`);
+  } catch (e) { toast("Fehler: " + e.message); }
+};
+
+function savePy() {
+  const first = getCode().split("\n")[0].replace(/^["'#\s]+|["'\s]+$/g, "");
+  const name = (first.toLowerCase().replace(/[^a-z0-9äöüß]+/g, "_").replace(/^_|_$/g, "").slice(0, 40) || "skizze") + ".py";
+  deliver(new Blob([getCode()], { type: "text/x-python" }), name);
+}
+$("savePy").onclick = savePy;
+$("openPy").onclick = () => $("fileIn").click();
+$("fileIn").onchange = async () => {
+  const f = $("fileIn").files[0]; if (!f) return;
+  setCode(await f.text()); $("fileIn").value = ""; state.params = {}; run(0);
+};
+
+// ------------------------------------------------------------------ toolbar
+function newSeed() { state.seed = Math.floor(Math.random() * 999999) + 1; run(0); }
+$("run").onclick = () => run(0);
+$("dice").onclick = newSeed;
+$("seed").onchange = () => { state.seed = parseInt($("seed").value) || 1; run(0); };
+$("live").onclick = () => { state.live = !state.live; $("live").classList.toggle("on", state.live); persist(); };
+$("resetParams").onclick = () => { state.params = {}; state.specSig = null; run(0); };
+$("shuffleParams").onclick = () => {
+  for (const p of state.specs) state.params[p.name] = randomParamValue(p);
+  state.specSig = null; run(0);
+};
+$("examples").onchange = () => {
+  const ex = state.examples.find(e => e.name === $("examples").value);
+  $("examples").value = "";
+  if (!ex) return;
+  const cur = getCode().trim();
+  const known = state.examples.some(e => e.source.trim() === cur);
+  if (cur && !known && !confirm("Aktuelle Skizze ersetzen? (Vorher mit 💾 speichern, falls du sie behalten willst.)")) return;
+  state.params = {}; state.specSig = null;
+  setCode(ex.source); run(0);
+};
+document.addEventListener("keydown", (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key === "Enter") { e.preventDefault(); e.shiftKey ? newSeed() : run(0); }
+  else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); savePy(); }
+  else if (e.key === "Escape") $("drawer").classList.remove("on");
+});
+
+// ------------------------------------------------------------------ help
+function buildReference(filter = "") {
+  const f = filter.trim().toLowerCase(), list = $("refList");
+  list.innerHTML = "";
+  for (const g of state.reference) {
+    const entries = g.entries.filter(e => !f || e.name.toLowerCase().includes(f) || e.doc.toLowerCase().includes(f));
+    if (!entries.length) continue;
+    const h = document.createElement("h3"); h.textContent = g.category; list.appendChild(h);
+    for (const e of entries) {
+      const d = document.createElement("div"); d.className = "ref";
+      d.innerHTML = `<code>${esc(e.name)}<span>${esc(e.sig)}</span></code><div>${esc(e.doc)}</div>`;
+      d.onclick = () => {
+        const ins = e.sig ? e.name + "()" : e.name;
+        if (cm) { cm.replaceSelection(ins); if (e.sig) { const c = cm.getCursor(); cm.setCursor({ line: c.line, ch: c.ch - 1 }); } cm.focus(); }
+        $("drawer").classList.remove("on");
+      };
+      list.appendChild(d);
+    }
+  }
+}
+$("help").onclick = () => { $("drawer").classList.add("on"); $("refSearch").focus(); };
+$("closeHelp").onclick = () => $("drawer").classList.remove("on");
+$("refSearch").oninput = () => buildReference($("refSearch").value);
+
+// ------------------------------------------------------------------ start
+(async function init() {
+  initEditor();
+  const saved = load();
+  state.seed = saved.seed || 1;
+  state.params = saved.params || {};
+  state.live = saved.live !== false;
+  $("live").classList.toggle("on", state.live);
+  $("seed").value = state.seed;
+  if (backend.standalone) {
+    $("loading").classList.add("on");
+    backend.onProgress = (msg) => {
+      if ($("loading").classList.contains("on")) $("loadingMsg").textContent = msg;
+      else $("busyMsg").textContent = msg;       // e.g. "Loading numpy"
+    };
+  }
+  try {
+    const [ex, ref] = await Promise.all([backend.call("sketch_examples", {}), backend.call("sketch_reference", {})]);
+    state.examples = ex.examples;
+    state.reference = ref.reference;
+  } catch (e) {
+    $("loadingMsg").textContent = "Fehler beim Laden: " + e.message;
+    $("console").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+    return;
+  }
+  $("loading").classList.remove("on");
+  for (const e of state.examples) $("examples").add(new Option(e.title, e.name));
+  buildReference();
+  const src = saved.source && saved.source.trim() ? saved.source : (state.examples[0] || { source: "" }).source;
+  if (cm) cm.off("change", onCodeChange);
+  setCode(src);
+  if (cm) cm.on("change", onCodeChange);
+  run(0);
+})();
+</script>
+</body>
+</html>

@@ -1,9 +1,10 @@
 """Command line interface.
 
-    python -m plotart                         → Web-Oberfläche starten
+    python -m plotart                         → Studio (Web-Oberfläche) starten
+    python -m plotart sketch meine.py --png   → Skizze ausführen und exportieren
     python -m plotart list                    → Generatoren und Parameter anzeigen
-    python -m plotart render blocks -s 42     → SVG erzeugen
-    python -m plotart random -n 10            → 10 zufällige Bilder
+    python -m plotart render blocks -s 42     → Generator-SVG erzeugen
+    python -m plotart random -n 10            → 10 zufällige Generator-Bilder
 """
 from __future__ import annotations
 
@@ -71,14 +72,91 @@ def _parse_sets(items: list[str]) -> dict:
     return out
 
 
+def _load_sketch_source(name: str) -> tuple[str, str]:
+    """Returns (source, stem) for a file path or an example name/prefix."""
+    from .sketch import list_examples
+    if os.path.isfile(name):
+        with open(name, encoding="utf-8") as f:
+            return f.read(), os.path.splitext(os.path.basename(name))[0]
+    matches = [e for e in list_examples() if e["name"] == name or e["name"].startswith(name)]
+    if len(matches) == 1:
+        return matches[0]["source"], matches[0]["name"]
+    names = ", ".join(e["name"] for e in list_examples())
+    sys.exit(f"'{name}' ist weder eine Datei noch ein eindeutiges Beispiel.\nBeispiele: {names}")
+
+
+def _run_sketch_cmd(args) -> int:
+    from .sketch import execute, render_png, render_svg, to_plotter
+    from .svg import to_svg
+
+    source, stem = _load_sketch_source(args.file)
+    params = _parse_sets(args.param)
+    status = 0
+    for i in range(args.count):
+        seed = args.seed + i
+        sk, log, err, ms = execute(source, params, seed)
+        if log:
+            print(log, end="" if log.endswith("\n") else "\n")
+        if err:
+            where = f"Zeile {err['line']}: " if err.get("line") else ""
+            print(f"✗ {where}{err['message']}", file=sys.stderr)
+            status = 1
+            continue
+        unknown = set(params) - {p.name for p in sk.param_specs}
+        if unknown:
+            print(f"Hinweis: unbekannte Parameter {', '.join(sorted(unknown))}", file=sys.stderr)
+        out = args.out
+        if out.lower().endswith((".svg", ".png")):
+            base = out[:-4] + (f"_{seed}" if args.count > 1 else "")
+            want_png = args.png or out.lower().endswith(".png")
+            want_svg = not args.no_svg and out.lower().endswith(".svg")
+        else:
+            os.makedirs(out, exist_ok=True)
+            base = os.path.join(out, f"{stem}_{seed}")
+            want_png, want_svg = args.png, not args.no_svg
+        os.makedirs(os.path.dirname(os.path.abspath(base)) or ".", exist_ok=True)
+        written = []
+        meta = {"seed": seed, "params": {p.name: params.get(p.name, p.default) for p in sk.param_specs}}
+        if want_svg:
+            with open(base + ".svg", "w", encoding="utf-8") as f:
+                f.write(render_svg(sk, meta))
+            written.append(base + ".svg")
+        if want_png:
+            with open(base + ".png", "wb") as f:
+                f.write(render_png(sk, scale=args.scale))
+            written.append(base + ".png")
+        if args.plotter:
+            d = to_plotter(sk, pen_width=args.pen)
+            with open(base + "_plotter.svg", "w", encoding="utf-8") as f:
+                f.write(to_svg(d))
+            st = d.stats()
+            written.append(f"{base}_plotter.svg ({st['paths']} Pfade, ca. {st['minutes']} min)")
+        print(f"✓ Seed {seed} in {ms:.0f} ms → " + ", ".join(written))
+    return status
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="plotart", description="Generative SVG-Kunst für Stiftplotter")
     sub = ap.add_subparsers(dest="cmd")
 
-    w = sub.add_parser("web", help="Web-Oberfläche starten (Standard)")
+    w = sub.add_parser("web", aliases=["studio"], help="Studio / Web-Oberfläche starten (Standard)")
     w.add_argument("--port", type=int, default=8765)
-    w.add_argument("--host", default="127.0.0.1")
+    w.add_argument("--host", default="127.0.0.1",
+                   help="0.0.0.0 = im Netzwerk erreichbar (z. B. fürs iPad, mit Zugangs-Token)")
     w.add_argument("--no-browser", action="store_true")
+    w.add_argument("--timeout", type=float, default=30.0, help="Zeitlimit pro Skizze in Sekunden")
+
+    sk = sub.add_parser("sketch", help="Skizze (.py) ausführen und exportieren")
+    sk.add_argument("file", help="Skizzen-Datei oder Name eines Beispiels (z. B. 03)")
+    sk.add_argument("-s", "--seed", type=int, default=1)
+    sk.add_argument("-p", "--param", action="append", metavar="NAME=WERT", help="Regler-Wert setzen")
+    sk.add_argument("-n", "--count", type=int, default=1, help="mehrere Seeds (seed, seed+1, …)")
+    sk.add_argument("-o", "--out", default="output", help="Ausgabeordner oder Datei (.svg / .png)")
+    sk.add_argument("--png", action="store_true", help="zusätzlich PNG")
+    sk.add_argument("--scale", type=float, help="PNG-Pixel pro Einheit (Standard: 1 bei px, 300 dpi bei mm)")
+    sk.add_argument("--plotter", action="store_true", help="zusätzlich Plotter-SVG (nur Linien, optimiert)")
+    sk.add_argument("--pen", type=float, default=0.45, help="Stiftbreite für --plotter (mm)")
+    sk.add_argument("--no-svg", action="store_true", help="kein Farb-SVG schreiben")
 
     sub.add_parser("list", help="Generatoren und Parameter auflisten")
 
@@ -97,11 +175,15 @@ def main(argv=None):
 
     args = ap.parse_args(argv)
 
-    if args.cmd in (None, "web"):
+    if args.cmd in (None, "web", "studio"):
         from .web import serve
         serve(host=getattr(args, "host", "127.0.0.1"), port=getattr(args, "port", 8765),
-              open_browser=not getattr(args, "no_browser", False))
+              open_browser=not getattr(args, "no_browser", False),
+              timeout=getattr(args, "timeout", 30.0))
         return
+
+    if args.cmd == "sketch":
+        sys.exit(_run_sketch_cmd(args))
 
     if args.cmd == "list":
         for g in REGISTRY.values():

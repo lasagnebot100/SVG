@@ -5,13 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "plotart"
 version = "1.0.0"
-description = "Generative SVG-Kunst für Stiftplotter – reines Python, mit Web-Oberfläche"
+description = "Generative Kunst mit Python – p5-ähnliche Skizzen-Sprache, Live-Studio, SVG/PNG/Plotter-Export"
 requires-python = ">=3.10"
 readme = "README.md"
 dependencies = []
 
 [project.optional-dependencies]
 png = ["Pillow"]
+full = ["Pillow", "numpy"]
 
 [project.scripts]
 plotart = "plotart.cli:main"
@@ -20,4 +21,4 @@ plotart = "plotart.cli:main"
 include = ["plotart*"]
 
 [tool.setuptools.package-data]
-plotart = ["static/*.html"]
+plotart = ["static/*.html", "static/vendor/*", "sketch/examples/*.py"]
