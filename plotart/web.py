@@ -28,9 +28,9 @@ PAGES = {"/": "studio.html", "/index.html": "studio.html", "/studio": "studio.ht
 FILES = {"/vendor/codemirror.js": ("vendor/codemirror.js", "text/javascript; charset=utf-8"),
          "/vendor/codemirror.css": ("vendor/codemirror.css", "text/css; charset=utf-8")}
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
-EXTENSIONS = {"mp4": "mp4", "webm": "webm", "gif": "gif", "png": "zip"}
+EXTENSIONS = {"mp4": "mp4", "webm": "webm", "gif": "gif", "png": "zip", "blend": "blend"}
 MIME = {".mp4": "video/mp4", ".webm": "video/webm", ".gif": "image/gif", ".zip": "application/zip",
-        ".svg": "image/svg+xml", ".png": "image/png"}
+        ".svg": "image/svg+xml", ".png": "image/png", ".blend": "application/x-blender"}
 
 
 # ------------------------------------------------------------------------- export jobs
@@ -45,9 +45,21 @@ def _export_entry(q, req):
             last[0] = now
             q.put(("progress", i, n))
     try:
-        res = export_animation(req["source"], req["out_path"], req["format"], req.get("params"),
-                               int(req.get("seed") or 1), req.get("scale"), req.get("frames"),
-                               req.get("fps"), progress=progress)
+        if req["format"] == "blend":
+            from .blender.make import BlenderError, make_blend
+            from .blender.scene import SceneError
+            q.put(("progress", 0, 1))
+            try:
+                res = make_blend(req["source"], req["out_path"], params=req.get("params"),
+                                 seed=int(req.get("seed") or 1), max_frames=req.get("frames"),
+                                 options=req.get("blender") or {})
+            except (BlenderError, SceneError) as exc:
+                raise ExportError(str(exc)) from exc
+            res = {**res, "bytes": os.path.getsize(req["out_path"]), "width": 0, "height": 0}
+        else:
+            res = export_animation(req["source"], req["out_path"], req["format"], req.get("params"),
+                                   int(req.get("seed") or 1), req.get("scale"), req.get("frames"),
+                                   req.get("fps"), progress=progress)
         q.put(("done", res))
     except ExportError as exc:
         q.put(("error", str(exc)))
@@ -169,6 +181,16 @@ class Handler(BaseHTTPRequestHandler):
             return self.sketches.save(req.get("name", ""), req.get("source", ""), bool(req.get("overwrite", True)))
         if cmd == "sketch_file_stat":
             return self.sketches.stat(req.get("name", ""))
+        if cmd == "blender_status":
+            import importlib.util
+            from .blender.make import find_blender
+            # only look whether bpy is installed – importing it here would be slow and heavy
+            via = "bpy" if importlib.util.find_spec("bpy") else ("blender" if find_blender() else None)
+            return {"available": via is not None, "via": via}
+        if cmd == "blender_addon":
+            from .blender.package import build_addon
+            path = build_addon(OUTPUT_DIR / "plotart_blender.zip")
+            return {"file": path.name, "url": "files/" + quote(path.name), "bytes": path.stat().st_size}
         if cmd == "export_start":
             fmt = req.get("format", "mp4")
             if fmt not in EXTENSIONS:

@@ -16,7 +16,8 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Zeitleiste im Studio:** Abspielen, Spulen, Bild für Bild, Geschwindigkeit
 - **Exporte:** Farb-SVG, PNG in jeder Auflösung (z. B. 300 dpi), **MP4, WebM, GIF, PNG-Sequenz**, **Plotter-SVG** (optimierte Linien, eine Ebene pro Farbe)
 - **Desktop-Arbeitsweise:** Skizzen im Ordner `skizzen/`, Speichern mit Strg+S; bearbeitest du die Datei in VS Code o. Ä., aktualisiert sich das Studio automatisch
-- **17 Beispiel-Skizzen** zum Lernen und Weiterbauen, davon 5 Animationen
+- **Blender-Anbindung:** Skizzen als Blender-Objekte (Flächen, Linien als Bänder oder 3D-Röhren, Text, Bilder), **Relief-Modus** für 3D-Skulpturen, Animationen auf der Zeitleiste, Add-on mit Reglern und automatischem Neuladen
+- **18 Beispiel-Skizzen** zum Lernen und Weiterbauen, davon 5 Animationen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -111,6 +112,47 @@ MP4 und WebM brauchen **ffmpeg**: entweder installieren (https://ffmpeg.org/down
 | Leertaste · ← → · Pos1 | Animation: Play/Pause · Bild zurück/vor · zum Anfang |
 | F1 | Hilfe |
 
+## Blender
+
+![Von der Skizze zur 3D-Szene](examples/blender.jpg)
+
+plotart bringt deine Skizzen nach Blender (ab Version 4.2). Das geht auf drei Wegen.
+
+**1. Add-on mit Live-Verbindung (empfohlen)**
+
+1. Add-on bauen: im Studio rechts **„⬇ Blender-Add-on (ZIP)“** oder `python3 -m plotart blender-addon`.
+2. In Blender: **Bearbeiten › Einstellungen › Erweiterungen › ▾ (oben rechts) › „Von Datenträger installieren …“** → ZIP wählen.
+3. Im 3D-Viewport die Seitenleiste öffnen (**Taste N**) → Reiter **„plotart“**.
+4. Skizzen-Datei wählen (z. B. aus `skizzen/`) oder ein Beispiel → **„Importieren / Aktualisieren“**.
+5. Mit **„Automatisch neu laden“** baut Blender die Szene neu, sobald du die Skizze im Studio (💾) oder in VS Code speicherst.
+
+Die Regler aus `param()` erscheinen auch in Blender.
+
+**2. Im Studio:** rechts unter **„Blender“** Relief, Linien, Kamera und Material wählen und **„🧊 Als .blend erzeugen“** klicken. Das braucht ein installiertes Blender.
+
+**3. Kommandozeile:**
+
+```bash
+python3 -m plotart sketch 18 --blend stadt.blend --relief brightness --relief-height 2.5 --camera perspective --material physical
+python3 -m plotart sketch 14 --blend spuren.blend --render frames/bild_####.png --engine CYCLES   # Animation rendern
+```
+
+| Option | Wirkung |
+|---|---|
+| Linien: Flach / Röhren | flache Bänder wie in 2D oder runde 3D-Röhren |
+| Material: Flach / Physikalisch | leuchtende Farben exakt wie im 2D-Bild oder Material, das auf Licht und Schatten reagiert |
+| Relief: Aus / Gleich hoch / Nach Reihenfolge / Nach Helligkeit | Flächen werden zu 3D-Körpern; Höhe frei wählbar |
+| Kamera: Draufsicht / Perspektive | orthografisch exakt wie das Bild oder schräg von vorne |
+| Animation: Ganze Animation / Ein Bild | jedes Bild auf der Zeitleiste (Sichtbarkeits-Keyframes, Spuren inklusive) oder ein einzelnes Bild |
+
+**Blender finden:** plotart sucht im `PATH`, in den üblichen Installationsordnern und in der Umgebungsvariable `PLOTART_BLENDER`. Alternativ kann Blender als Python-Modul installiert werden: `pip install bpy`, nur für die passende Python-Version.
+
+**Grenzen:**
+- Verläufe werden zur Durchschnittsfarbe.
+- Mischmodi (Multiply …) gibt es in Blender nicht.
+- Halbtransparente Formen sind in Eevee nicht immer korrekt sortiert; Cycles rendert sie exakt.
+- Skizzen laufen in Blender ohne Zeitlimit. Eine Endlosschleife friert Blender ein.
+
 ## Die Skizzen-Sprache – Spickzettel
 
 | Bereich | Funktionen |
@@ -149,6 +191,7 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 15 | Animation: Wellen-Loop | `loop_noise()` für organische, nahtlose Bewegung |
 | 16 | Animation: Wachsendes Bild | Ohne `background()` – die Zeichnung entsteht Strich für Strich |
 | 17 | Animation: Kinetische Typografie | Easing, `ping_pong()`, Versatz pro Zeile |
+| 18 | Relief-Stadt | gedacht für Blender: Helligkeit wird zur Höhe |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -256,6 +299,7 @@ plotart/
 ├── sketch/            Skizzen-Sprache (p5-ähnliche API), Renderer, Exporte, Beispiele
 │   ├── animation.py   Bild-für-Bild-Ausführung (setup/draw)
 │   └── video.py       MP4/WebM/GIF/PNG-Sequenz-Export
+├── blender/           Blender-Anbindung: Szene, Geometrie, Aufbau (bpy), Add-on, Paket
 ├── generators/        fertige Plotter-Generatoren
 ├── static/            Studio, Generator-Seite, Code-Editor (CodeMirror 5, MIT)
 ├── bridge.py          gemeinsame Schnittstelle für Server, Worker-Prozess und Browser
@@ -268,10 +312,10 @@ tools/build_web.py     baut die Browser-Version (Pyodide)
 ## Ausblick
 
 - ~~Stufe 2 – Animation~~ ✓
-- **Stufe 3 – Blender:** Add-on, das Skizzen als Kurven, Meshes oder Grease Pencil mit Keyframes nach Blender bringt
+- ~~Stufe 3 – Blender~~ ✓
 
 ## Tests
 
 ```bash
-python3 -m unittest discover -s tests
+python3 -m unittest discover -s tests          # Blender-Tests laufen mit, wenn `bpy` installiert ist
 ```

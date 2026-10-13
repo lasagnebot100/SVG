@@ -115,6 +115,23 @@ def _export_animation_cli(source, stem, params, seed, args) -> int:
     return status
 
 
+def _make_blend_cli(source, params, seed, args) -> int:
+    from .blender.make import BlenderError, make_blend
+    from .blender.scene import SceneError
+    out = args.blend if args.count == 1 else args.blend.replace(".blend", f"_{seed}.blend")
+    options = {"relief": args.relief, "relief_height": args.relief_height, "stroke_mode": args.lines,
+               "material_mode": args.material, "camera": args.camera}
+    try:
+        res = make_blend(source, out, params=params, seed=seed, width=args.width, frame=args.image,
+                         max_frames=args.frames, options=options, render=args.render, engine=args.engine)
+    except (BlenderError, SceneError) as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+    print(f"✓ {res['out']}  –  {res['objects']} Objekte, {res['frames']} Bild(er)"
+          + (f", gerendert nach {args.render}" if args.render else ""))
+    return 0
+
+
 def _run_sketch_cmd(args) -> int:
     from .sketch import execute, render_png, render_svg, to_plotter
     from .svg import to_svg
@@ -125,6 +142,10 @@ def _run_sketch_cmd(args) -> int:
     animated_out = args.mp4 or args.webm or args.gif or args.png_seq
     for i in range(args.count):
         seed = args.seed + i
+        if args.blend:
+            status |= _make_blend_cli(source, params, seed, args)
+            if not animated_out:
+                continue
         if animated_out:
             status |= _export_animation_cli(source, stem, params, seed, args)
             continue
@@ -199,6 +220,23 @@ def main(argv=None):
     anim.add_argument("--png-seq", action="store_true", help="alle Bilder als PNG-Sequenz (ZIP)")
     anim.add_argument("--frames", type=int, help="Anzahl Bilder (überschreibt animation())")
     anim.add_argument("--fps", type=float, help="Bilder pro Sekunde (überschreibt animation())")
+    bl = sk.add_argument_group("Blender (braucht Blender oder `pip install bpy`)")
+    bl.add_argument("--blend", metavar="DATEI.blend", help="Blender-Datei erzeugen")
+    bl.add_argument("--render", metavar="BILD", help="zusätzlich rendern (bei Animationen z. B. frames/bild_####.png)")
+    bl.add_argument("--relief", choices=["none", "constant", "order", "brightness"], default="none",
+                    help="Flächen hochziehen: gleich hoch, nach Reihenfolge oder nach Helligkeit")
+    bl.add_argument("--relief-height", type=float, default=0.5, help="Relief-Höhe in Blender-Einheiten")
+    bl.add_argument("--lines", choices=["flat", "tube"], default="flat", help="Linien flach oder als 3D-Röhren")
+    bl.add_argument("--material", choices=["flat", "physical"], default="flat",
+                    help="flat = exakte 2D-Farben, physical = reagiert auf Licht")
+    bl.add_argument("--camera", choices=["top", "perspective"], default="top")
+    bl.add_argument("--width", type=float, default=10.0, help="Breite in Blender-Einheiten")
+    bl.add_argument("--image", type=int, metavar="N", help="nur Bild N der Animation (inkl. Spuren)")
+    bl.add_argument("--engine", choices=["CYCLES", "BLENDER_EEVEE", "BLENDER_EEVEE_NEXT", "BLENDER_WORKBENCH"],
+                    help="Render-Engine")
+
+    ba = sub.add_parser("blender-addon", help="Blender-Erweiterung (ZIP) bauen")
+    ba.add_argument("-o", "--out", default=os.path.join("output", "plotart_blender.zip"))
 
     sub.add_parser("list", help="Generatoren und Parameter auflisten")
 
@@ -226,6 +264,14 @@ def main(argv=None):
 
     if args.cmd == "sketch":
         sys.exit(_run_sketch_cmd(args))
+
+    if args.cmd == "blender-addon":
+        from .blender.package import build_addon
+        path = build_addon(args.out)
+        print(f"✓ {path}\n  In Blender: Bearbeiten › Einstellungen › Erweiterungen › ▾ (oben rechts) › "
+              "„Von Datenträger installieren …“ → diese ZIP wählen.\n"
+              "  Danach im 3D-Viewport die Seitenleiste (Taste N) öffnen › Reiter „plotart“.")
+        return
 
     if args.cmd == "list":
         for g in REGISTRY.values():

@@ -203,6 +203,30 @@
       <p class="empty web-only">Video-, GIF- und PNG-Sequenz-Export gibt es in der Desktop-Version: <code>python3 -m plotart</code></p>
     </div>
 
+    <div class="desktop-only">
+      <h2>Blender</h2>
+      <div class="vidbox">
+        <div class="row2">
+          <div class="field"><label>Relief</label><select id="blRelief">
+            <option value="none">Aus (flach)</option><option value="constant">Gleich hoch</option>
+            <option value="order">Nach Reihenfolge</option><option value="brightness">Nach Helligkeit</option></select></div>
+          <div class="field"><label>Linien</label><select id="blLines">
+            <option value="flat">Flach</option><option value="tube">3D-Röhren</option></select></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Kamera</label><select id="blCamera">
+            <option value="top">Draufsicht</option><option value="perspective">Perspektive</option></select></div>
+          <div class="field"><label>Material</label><select id="blMaterial">
+            <option value="flat">Flach (2D-Farben)</option><option value="physical">Physikalisch</option></select></div>
+        </div>
+        <button class="btn primary" id="blMake" style="width:100%;justify-content:center;margin-top:4px">🧊 Als .blend erzeugen</button>
+        <div class="vidmsg" id="blMsg" style="margin-top:6px"></div>
+        <button class="btn" id="blAddon" style="width:100%;justify-content:center;margin-top:8px">⬇ Blender-Add-on (ZIP)</button>
+        <p class="empty" style="margin:8px 0 0">Live-Verbindung: Skizze mit 💾 speichern, im Add-on (Seitenleiste › plotart)
+          dieselbe Datei wählen – mit „Automatisch neu laden“ aktualisiert jede Speicherung hier sofort Blender.</p>
+      </div>
+    </div>
+
     <h2>Export</h2>
     <div class="field"><label>PNG-Auflösung</label>
       <select id="pngScale"></select></div>
@@ -783,6 +807,54 @@ async function pollJob(id) {
   }
 }
 
+// ================================================================== Blender (desktop)
+function fileLink(st) {
+  const href = st.url + (TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "");
+  return `<a href="${esc(href)}" download="${esc(st.file)}">⬇ ${esc(st.file)}</a>`;
+}
+async function loadBlenderStatus() {
+  let st;
+  try { st = await backend.call("blender_status", {}); } catch (e) { return; }
+  if (!st.available) {
+    $("blMake").disabled = true;
+    $("blMsg").innerHTML = 'Blender nicht gefunden – <a href="https://www.blender.org/download/" target="_blank">installieren</a> ' +
+      "oder Pfad in der Umgebungsvariable <code>PLOTART_BLENDER</code> setzen. Das Add-on funktioniert trotzdem.";
+  }
+}
+$("blAddon").onclick = async () => {
+  try {
+    const r = await backend.call("blender_addon", {});
+    $("blMsg").className = "vidmsg";
+    $("blMsg").innerHTML = `${fileLink(r)} · In Blender: Einstellungen › Erweiterungen › ▾ › „Von Datenträger installieren …“`;
+    $("blMsg").querySelector("a").click();
+  } catch (e) { toast(e.message); }
+};
+$("blMake").onclick = async () => {
+  const msg = $("blMsg");
+  msg.className = "vidmsg"; msg.textContent = "Blender baut die Szene …";
+  $("blMake").disabled = true;
+  try {
+    const job = await backend.call("export_start", { ...sketchPayload(), format: "blend", name: fileStem(),
+      blender: { relief: $("blRelief").value, stroke_mode: $("blLines").value, camera: $("blCamera").value,
+                 material_mode: $("blMaterial").value } });
+    let st = job;
+    const t0 = Date.now();
+    while (st.state === "running") {
+      await new Promise(r => setTimeout(r, 500));
+      try { st = await backend.call("export_status", { id: job.id }); }
+      catch (e) { st = { state: "error", error: e.message }; }
+      if (st.state === "running") msg.textContent = `Blender baut die Szene … ${fmtNum((Date.now() - t0) / 1000, 0)} s`;
+    }
+    if (st.state === "done") {
+      msg.innerHTML = `✓ fertig in ${fmtNum(st.seconds)} s · ${fmtBytes(st.bytes)} · ${fileLink(st)}`;
+      msg.querySelector("a").click();
+    } else {
+      msg.className = "vidmsg err"; msg.textContent = st.error || "Fehlgeschlagen";
+    }
+  } catch (e) { msg.className = "vidmsg err"; msg.textContent = e.message; }
+  $("blMake").disabled = false;
+};
+
 // ================================================================== files (desktop)
 const TEMPLATES = {
   bild: '"""Neue Skizze"""\nsize(800, 800)\nbackground("#f4f1ea")\n\nno_stroke()\nfill("#1f5fbf")\ncircle(width / 2, height / 2, 300)\n',
@@ -984,7 +1056,7 @@ $("refSearch").oninput = () => buildReference($("refSearch").value);
   $("loading").classList.remove("on");
   for (const e of state.examples) $("examples").add(new Option(e.title, e.name));
   buildReference();
-  if (DESKTOP) { refreshFiles(); loadCapabilities(); }
+  if (DESKTOP) { refreshFiles(); loadCapabilities(); loadBlenderStatus(); }
   let src = saved.source && saved.source.trim() ? saved.source : (state.examples[0] || { source: "" }).source;
   if (DESKTOP && saved.file) {
     // reopen the last file; keep unsaved edits from the last session if there were any

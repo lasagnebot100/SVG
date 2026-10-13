@@ -43,3 +43,30 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  compat:
+    # all tests on the Python versions Blender ships (4.2–4.5: 3.11, 5.x: 3.13)
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install Pillow numpy
+      - run: python -m unittest discover -s tests -v
+
+  blender:
+    # the Blender add-on against real Blender (bpy module)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: System-Bibliotheken für bpy
+        run: sudo apt-get update && sudo apt-get install -y libxrender1 libxxf86vm1 libxfixes3 libxi6 libxkbcommon0 libsm6 libgl1 libegl1
+      - run: pip install "bpy==5.2.*"
+      - run: python -m unittest tests.test_blender -v
