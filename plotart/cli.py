@@ -233,6 +233,9 @@ def main(argv=None):
     w.add_argument("--no-browser", action="store_true")
     w.add_argument("--timeout", type=float, default=30.0, help="Zeitlimit pro Skizze in Sekunden")
     w.add_argument("--ordner", default="skizzen", help="Ordner für deine Skizzen (Standard: ./skizzen)")
+    w.add_argument("--osc-in", type=int, metavar="PORT",
+                   help="OSC empfangen (z. B. 9000): Regler, Seed, Play fernsteuern; osc() in Skizzen")
+    w.add_argument("--osc-out", metavar="HOST:PORT", help="osc_send() aus Skizzen dorthin senden (z. B. 127.0.0.1:9001)")
 
     sk = sub.add_parser("sketch", help="Skizze (.py) ausführen und exportieren")
     sk.add_argument("file", help="Skizzen-Datei oder Name eines Beispiels (z. B. 03)")
@@ -296,7 +299,8 @@ def main(argv=None):
         from .web import serve
         serve(host=getattr(args, "host", "127.0.0.1"), port=getattr(args, "port", 8765),
               open_browser=not getattr(args, "no_browser", False),
-              timeout=getattr(args, "timeout", 30.0), sketch_dir=getattr(args, "ordner", "skizzen"))
+              timeout=getattr(args, "timeout", 30.0), sketch_dir=getattr(args, "ordner", "skizzen"),
+              osc_in=getattr(args, "osc_in", None), osc_out=getattr(args, "osc_out", None))
         return
 
     if args.cmd == "sketch":

@@ -19,6 +19,8 @@ from .three import (I4, Scene3D, from_2d, geo_box, geo_cylinder, geo_ellipsoid, 
 
 IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
+OSC_VALUES: dict = {}       # address → list of values (latest message), shared by all sketches
+
 CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Transformation", "3D",
               "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Animation", "Ton & Interaktion", "Zufall & Noise", "Mathe",
               "Parameter", "Werkzeuge"]
@@ -106,6 +108,8 @@ class Sketch:
         self._param_values = dict(param_values or {})
         # keyframes per slider: {"Name": [[frame, value], …]} – applied per frame by apply_keys()
         self._param_keys = self._param_values.pop("__keys__", None) or {}
+        # recorded mouse/keyboard input, one entry per frame (live mode → export)
+        self.input_track = self._param_values.pop("__input__", None) or []
         self.param_specs: list[Param] = []
         self.ns: dict | None = None          # namespace of the running sketch
         # 3D state (see three.py) and input (mouse/keyboard/OSC, filled by the runner)
@@ -114,8 +118,11 @@ class Sketch:
         self.meshes3d: list = []
         self._orbit = None
         self.input: dict = {}
-        self._osc: dict = {}
+        self._osc: dict = OSC_VALUES          # shared: filled by the OSC receiver / TouchDesigner
+        self._frames_explicit = False
         self.audio_sources: list = []
+        self._audio_sync = None
+        self._osc_out: list = []
         # animation settings (used when the sketch defines draw())
         self.anim_frames = 120
         self.anim_fps = 30.0
@@ -882,9 +889,16 @@ class Sketch:
         """Länge und Tempo der Animation: animation(frames=240, fps=30). Gilt, wenn draw() definiert ist."""
         if frames is not None:
             self.anim_frames = max(1, int(frames))
+            self._frames_explicit = True
         if fps is not None:
             self.anim_fps = max(1.0, float(fps))
         self._update_ns(frames=self.anim_frames, fps=self.anim_fps)
+
+    def finalize_timing(self):
+        """After setup: a synced sound decides the length (unless frames were set explicitly)."""
+        if self._audio_sync is not None and not self._frames_explicit:
+            self.anim_frames = self._audio_sync.frames(self.anim_fps)
+            self._update_ns(frames=self.anim_frames)
 
     @api("Animation")
     def frame_rate(self, fps):
@@ -895,6 +909,41 @@ class Sketch:
     def duration(self, seconds):
         """Länge in Sekunden (setzt frames = Sekunden × fps)."""
         self.animation(frames=round(float(seconds) * self.anim_fps))
+
+    # ------------------------------------------------------------------ sound & interaction
+    @api("Ton & Interaktion")
+    def load_audio(self, path, sync=True):
+        """Ton laden (WAV, mit ffmpeg auch MP3/OGG/…) → .level(), .spectrum(16), .bass(), .beat(), .waveform().
+        sync=True: Animation dauert so lang wie der Ton, und der Ton kommt ins Video. Beispiel: "beispiel:beat.wav"."""
+        from .audio import load_audio
+        a = load_audio(str(path), self)
+        if path not in self.audio_sources:
+            self.audio_sources.append(str(path))
+        if sync:
+            self._audio_sync = a
+            self.anim_frames = a.frames(self.anim_fps)
+            self._update_ns(frames=self.anim_frames)
+        return a
+
+    @api("Ton & Interaktion")
+    def osc(self, address, default=0.0):
+        """Letzter Wert einer OSC-Nachricht (z. B. aus TouchDesigner): osc("/td/level", 0). Studio mit --osc-in starten."""
+        v = self._osc.get(address)
+        if v is None:
+            return default
+        return v[0] if len(v) == 1 else list(v)
+
+    @api("Ton & Interaktion")
+    def osc_send(self, address, *values):
+        """OSC-Nachricht senden (z. B. an TouchDesigner): osc_send("/plotart/x", mouse_x). Studio mit --osc-out starten."""
+        self._osc_out.append((str(address), [v if isinstance(v, (int, float, str)) else float(v) for v in values]))
+
+    @api("Ton & Interaktion")
+    def midi(self, cc, default=0.0, channel=None):
+        """Wert 0–1 eines MIDI-Reglers (Control Change cc) – im Studio-Live-Modus mit angeschlossenem Controller."""
+        m = self.input.get("midi") or {}
+        v = m.get(f"{channel}:{cc}" if channel is not None else str(cc))
+        return default if v is None else float(v)
 
     @api("Animation")
     def no_loop(self):

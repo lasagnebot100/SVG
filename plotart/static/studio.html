@@ -161,6 +161,12 @@
     .side { max-height: none; }
   }
 .check{display:flex;gap:6px;align-items:center;font-size:13px;margin:2px 0 10px;cursor:pointer}
+#animView.live{cursor:crosshair;outline:2px solid #1f5fbf;outline-offset:2px}
+#animView:focus{outline:none}#animView.live:focus{outline:2px solid #1f5fbf}
+#tlRec.rec{color:#d02020;animation:blink 1s infinite}@keyframes blink{50%{opacity:.4}}
+body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px;cursor:pointer}
+.field.learning{outline:2px solid #e09000!important;background:#fff6e0}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -207,11 +213,17 @@
       <button class="btn on" id="tlLoop" title="Endlos wiederholen">🔁</button>
       <select id="tlSpeed" title="Wiedergabe-Geschwindigkeit">
         <option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+      <button class="btn" id="tlMute" title="Ton an/aus (der erste mit load_audio() geladene Ton)" hidden>🔊</button>
+      <span class="sep"></span>
+      <button class="btn" id="tlLive" title="Interaktiv: Maus, Tastatur und MIDI steuern die Skizze live (I)">🎮 Interaktiv</button>
+      <button class="btn" id="tlRec" title="Eingaben aufnehmen – die Aufnahme wird in Vorschau und Video-Export abgespielt">⏺</button>
+      <button class="btn" id="tlRecInfo" title="Aufnahme verwerfen" hidden></button>
     </div>
     <div class="status" id="status">–</div>
   </section>
   <aside class="side">
-    <h2>Parameter <span><button class="btn" id="shuffleParams" title="Alle Regler würfeln">✨</button>
+    <h2>Parameter <span><button class="btn" id="midiBtn" title="MIDI-Controller: einschalten, Regler anklicken, am Controller drehen (MIDI-Learn)">🎹</button>
+      <button class="btn" id="shuffleParams" title="Alle Regler würfeln">✨</button>
       <button class="btn" id="resetParams">Standard</button></span></h2>
     <div id="params"><p class="empty">Regler entstehen automatisch aus deiner Skizze, z. B.<br>
       <code>n = param("Anzahl", 40, 1, 200)</code></p></div>
@@ -451,7 +463,9 @@ $("cancel").onclick = () => {
 
 function paramsWithKeys(params = state.params) {
   const keys = Object.fromEntries(Object.entries(state.keys).filter(([, v]) => v.length));
-  return Object.keys(keys).length ? { ...params, __keys__: keys } : params;
+  const out = Object.keys(keys).length ? { ...params, __keys__: keys } : { ...params };
+  if (state.inputTrack && state.inputTrack.length) out.__input__ = state.inputTrack;
+  return out;
 }
 function sketchPayload() { return { source: getCode(), params: paramsWithKeys(), seed: state.seed }; }
 
@@ -473,9 +487,16 @@ async function runNow() {
     if (res.has3d && !state.hiddenTouched) $("hiddenLines").checked = true;   // 3D plots need it almost always
     $("sheet").classList.remove("stale");
     updatePngScales();
+    loadAudio(res.audio);
     if (res.animated) {
       startAnimation(res);
+      if (live.on) { stopAnimation(false); setPlaying(false); live.restart = true; }
+      else if (res.interactive && !state.hintedLive) {
+        state.hintedLive = true;
+        appendLog("\nTipp: Diese Skizze reagiert auf Maus/Tastatur – 🎮 Interaktiv (Taste I) einschalten.", "muted");
+      }
     } else {
+      if (live.on) stopLive(true);
       stopAnimation(true);
       $("svgView").innerHTML = res.svg.replace(/^<\?xml[^>]*>\s*/, "");
     }
@@ -720,7 +741,8 @@ function buildParams(specs) {
       // editing a slider on a frame that has a keyframe updates that keyframe
       const ks = state.keys[p.name];
       if (state.animated && ks) { const k = ks.find(x => x[0] === anim.cur + 1); if (k) { k[1] = val; renderKeys(p.name); } }
-      persist(); run(120);
+      persist();
+      if (!live.on) run(120);
     };
     if (p.kind === "choice") {
       input = document.createElement("select");
@@ -861,6 +883,242 @@ $("exp3d").onclick = async (ev) => {
     toast(`3D-Export: ${r.meshes} Objekte`);
   } catch (e) { toast("Fehler: " + e.message); }
 };
+
+// ================================================================== interactive (live) mode
+// One frame per request with the current mouse/keyboard/MIDI state – like p5's draw loop.
+const live = { on: false, gen: 0, restart: true, events: [], recording: null, midi: {},
+  input: { mouse_x: 0, mouse_y: 0, mouse_is_pressed: false, mouse_button: null, key: "", key_code: 0,
+           key_is_pressed: false, wheel: 0 } };
+canvas.tabIndex = 0;
+
+function canvasPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * state.width, y: (e.clientY - r.top) / r.height * state.height };
+}
+function pushEvent(ev, coalesce) {
+  const last = live.events[live.events.length - 1];
+  if (coalesce && last && last.type === ev.type) live.events[live.events.length - 1] = ev;   // one move per frame
+  else live.events.push(ev);
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (!live.on) return;
+  canvas.focus(); canvas.setPointerCapture(e.pointerId); e.preventDefault();
+  const p = canvasPos(e), button = ["left", "center", "right"][e.button] || "left";
+  Object.assign(live.input, { mouse_x: p.x, mouse_y: p.y, mouse_is_pressed: true, mouse_button: button });
+  pushEvent({ type: "mouse_pressed", x: p.x, y: p.y, button });
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!live.on) return;
+  const p = canvasPos(e);
+  Object.assign(live.input, { mouse_x: p.x, mouse_y: p.y });
+  pushEvent({ type: live.input.mouse_is_pressed ? "mouse_dragged" : "mouse_moved", x: p.x, y: p.y }, true);
+});
+canvas.addEventListener("pointerup", (e) => {
+  if (!live.on) return;
+  const p = canvasPos(e);
+  Object.assign(live.input, { mouse_x: p.x, mouse_y: p.y, mouse_is_pressed: false });
+  pushEvent({ type: "mouse_released", x: p.x, y: p.y, button: live.input.mouse_button });
+  pushEvent({ type: "mouse_clicked", x: p.x, y: p.y, button: live.input.mouse_button });
+});
+canvas.addEventListener("contextmenu", (e) => { if (live.on) e.preventDefault(); });
+canvas.addEventListener("wheel", (e) => {
+  if (!live.on) return;
+  e.preventDefault();
+  live.input.wheel += e.deltaY;
+  pushEvent({ type: "mouse_wheel", delta: e.deltaY });
+}, { passive: false });
+canvas.addEventListener("keydown", (e) => {
+  if (!live.on || e.ctrlKey || e.metaKey) return;
+  e.preventDefault();
+  Object.assign(live.input, { key: e.key, key_code: e.keyCode, key_is_pressed: true });
+  if (!e.repeat) pushEvent({ type: "key_pressed", key: e.key, key_code: e.keyCode });
+  if (e.key.length === 1) pushEvent({ type: "key_typed", key: e.key, key_code: e.keyCode });
+});
+canvas.addEventListener("keyup", (e) => {
+  if (!live.on) return;
+  Object.assign(live.input, { key: e.key, key_code: e.keyCode, key_is_pressed: false });
+  pushEvent({ type: "key_released", key: e.key, key_code: e.keyCode });
+});
+
+function startLive() {
+  if (!state.animated) { toast("Interaktiv geht mit animierten Skizzen (mit draw())"); return; }
+  live.on = true; live.gen++; live.restart = true; live.events = [];
+  stopAnimation(false); setPlaying(false);
+  $("tlLive").classList.add("on"); canvas.classList.add("live");
+  canvas.focus();
+  liveLoop(live.gen);
+}
+function stopLive(silentStop) {
+  if (!live.on) return;
+  live.on = false; live.gen++;
+  if (live.recording) finishRecording();
+  $("tlLive").classList.remove("on"); canvas.classList.remove("live");
+  syncAudio(0, false);
+  if (!silentStop) run(0);                // back to the normal (recorded/replayed) player
+}
+$("tlLive").onclick = () => live.on ? stopLive() : startLive();
+
+async function liveLoop(gen) {
+  while (live.on && gen === live.gen) {
+    const t0 = performance.now();
+    const events = live.events; live.events = [];
+    const input = { ...live.input, midi: { ...live.midi } };
+    live.input.wheel = 0;
+    let r;
+    try {
+      r = await backend.call("anim_live", { ...sketchPayload(), input, events, restart: live.restart });
+    } catch (e) {
+      if (gen === live.gen && e.message !== "Abgebrochen" && e.message !== "veraltet") { appendLog(e.message + "\n", "err"); stopLive(true); }
+      return;
+    }
+    live.restart = false;
+    if (gen !== live.gen) return;
+    if (r.info && r.info.log) appendLog(r.info.log);
+    if (r.log) appendLog(r.log);
+    if (r.sketch_error) {
+      const e = r.sketch_error;
+      appendLog(`${e.line ? "Zeile " + e.line + ": " : ""}${e.message}\n`, "err");
+      markErrorLine(e.line); stopLive(true); return;
+    }
+    if (r.frame) {
+      const img = await decode(r.frame.svg);
+      if (gen !== live.gen) return;
+      if (r.frame.clears || r.frame.index === 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      $("tlCount").textContent = `live · ${r.frame.index + 1}` + (live.recording ? ` · ⏺ ${live.recording.length + 1}` : "");
+      syncAudio(r.frame.index, true);
+      if (live.recording) live.recording.push({ x: input.mouse_x, y: input.mouse_y, p: input.mouse_is_pressed ? 1 : 0,
+        b: input.mouse_button, k: input.key, kc: input.key_code, kp: input.key_is_pressed ? 1 : 0, w: input.wheel,
+        e: events, m: Object.keys(input.midi).length ? input.midi : undefined });
+    }
+    const wait = 1000 / (anim.fps || 30) - (performance.now() - t0);
+    if (wait > 0) await new Promise(res => setTimeout(res, wait));
+  }
+}
+
+// recording: the frames' inputs become params.__input__ → preview and video export replay them
+function updateRecInfo() {
+  const n = state.inputTrack ? state.inputTrack.length : 0;
+  $("tlRecInfo").hidden = !n;
+  $("tlRecInfo").textContent = `Aufnahme ${n} Bilder ✕`;
+}
+function finishRecording() {
+  state.inputTrack = live.recording; live.recording = null;
+  $("tlRec").classList.remove("rec");
+  updateRecInfo();
+  toast(`Aufnahme mit ${state.inputTrack.length} Bildern übernommen – Vorschau und Video-Export spielen sie ab`, 4000);
+  const n = state.inputTrack.length;
+  if ($("vidFrames") && n) $("vidFrames").value = n;
+}
+$("tlRec").onclick = () => {
+  if (live.recording) { finishRecording(); stopLive(); return; }
+  live.recording = [];
+  $("tlRec").classList.add("rec");
+  if (!live.on) startLive(); else live.restart = true;     // recording starts at frame 1
+};
+$("tlRecInfo").onclick = () => { state.inputTrack = null; updateRecInfo(); run(0); };
+
+// ================================================================== sound
+const audioEl = new Audio();
+let audioName = null;
+async function loadAudio(names) {
+  const name = names && names.length ? names[0] : null;
+  $("tlMute").hidden = !name;
+  if (name === audioName) return;
+  audioName = name; audioEl.pause();
+  if (!name) { audioEl.removeAttribute("src"); return; }
+  try {
+    const r = await backend.call("audio_data", { name });
+    if (audioName === name) audioEl.src = `data:${r.mime};base64,${r.base64}`;
+  } catch (e) { appendLog("Ton: " + e.message + "\n", "err"); }
+}
+function syncAudio(frame, playing) {
+  if (!audioName || !audioEl.src) return;
+  if (!playing || state.muted || frame / (anim.fps || 30) >= (audioEl.duration || Infinity)) {
+    if (!audioEl.paused) audioEl.pause();
+    return;
+  }
+  const want = frame / (anim.fps || 30);
+  audioEl.playbackRate = live.on ? 1 : anim.speed;
+  if (Math.abs(audioEl.currentTime - want) > 0.12) audioEl.currentTime = want;
+  if (audioEl.paused) audioEl.play().catch(() => {});      // autoplay rules: works after a first click
+}
+$("tlMute").onclick = () => {
+  state.muted = !state.muted;
+  $("tlMute").textContent = state.muted ? "🔇" : "🔊";
+  if (state.muted) audioEl.pause();
+};
+setInterval(() => { if (!live.on) syncAudio(Math.max(0, anim.cur), state.animated && anim.playing && anim.cur >= 0 &&
+  anim.cur < anim.frames.length && (anim.cur + 1 < anim.frames.length || anim.done)); }, 100);
+
+// ================================================================== MIDI (Web MIDI: Chrome, Edge, Firefox)
+const midi = { access: null, learnMode: false, learn: null, map: {} };
+try { midi.map = JSON.parse(localStorage.getItem("plotart-midi") || "{}"); } catch (e) {}
+function onMidi(msg) {
+  const [st, d1, d2] = msg.data;
+  if ((st & 0xf0) !== 0xb0) return;                         // only control change
+  const ch = (st & 0x0f) + 1, v = d2 / 127, id = `${ch}:${d1}`;
+  live.midi[String(d1)] = v; live.midi[id] = v;              // midi(cc) in the sketch
+  if (midi.learn) {
+    midi.map[id] = midi.learn;
+    try { localStorage.setItem("plotart-midi", JSON.stringify(midi.map)); } catch (e) {}
+    toast(`MIDI CC ${d1} (Kanal ${ch}) → ${midi.learn}`);
+    document.querySelectorAll(".field.learning").forEach(f => f.classList.remove("learning"));
+    midi.learn = null;
+  }
+  const name = midi.map[id];
+  const p = name && (state.specs || []).find(s => s.name === name);
+  const input = p && document.querySelector(`.field[data-param="${CSS.escape(name)}"] input[type=range]`);
+  if (!input) return;
+  let x = p.min + (p.max - p.min) * v;
+  x = p.kind === "int" ? Math.round(x) : Math.round(x / (p.step || 0.001)) * (p.step || 0.001);
+  input.value = x; input.dispatchEvent(new Event("input"));
+}
+$("midiBtn").onclick = async () => {
+  if (!navigator.requestMIDIAccess) { toast("Web MIDI fehlt in diesem Browser (geht in Chrome, Edge, Firefox – nicht in Safari)", 4000); return; }
+  if (!midi.access) {
+    try { midi.access = await navigator.requestMIDIAccess(); } catch (e) { toast("MIDI-Zugriff wurde verweigert"); return; }
+    const hook = () => { for (const inp of midi.access.inputs.values()) inp.onmidimessage = onMidi; };
+    hook(); midi.access.onstatechange = hook;
+  }
+  midi.learnMode = !midi.learnMode;
+  $("midiBtn").classList.toggle("on", midi.learnMode);
+  document.body.classList.toggle("midi-learn", midi.learnMode);
+  if (!midi.learnMode) { midi.learn = null; document.querySelectorAll(".field.learning").forEach(f => f.classList.remove("learning")); }
+  toast(midi.learnMode ? "MIDI-Learn: Regler anklicken, dann am Controller drehen"
+                       : `MIDI aktiv – ${Object.keys(midi.map).length} Zuordnung(en)`, 3500);
+};
+$("params").addEventListener("pointerdown", (e) => {
+  if (!midi.learnMode) return;
+  const f = e.target.closest(".field[data-param]");
+  if (!f) return;
+  e.preventDefault(); e.stopPropagation();
+  document.querySelectorAll(".field.learning").forEach(x => x.classList.remove("learning"));
+  f.classList.add("learning"); midi.learn = f.dataset.param;
+}, true);
+
+// ================================================================== OSC remote control (desktop: studio --osc-in)
+function setParamRemote(name, value) {
+  const p = (state.specs || []).find(s => s.name === name || s.label === name);
+  if (!p) return;
+  const input = document.querySelector(`.field[data-param="${CSS.escape(p.name)}"] input[type=range]`);
+  if (input) { input.value = value; input.dispatchEvent(new Event("input")); return; }
+  state.params[p.name] = value; persist(); if (!live.on) run(60);
+}
+function connectEvents() {
+  if (!DESKTOP || !window.EventSource) return;
+  const es = new EventSource("api/events" + (TOKEN ? "?token=" + encodeURIComponent(TOKEN) : ""));
+  es.onmessage = (e) => {
+    let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+    if (m.type === "param") setParamRemote(m.name, m.value);
+    else if (m.type === "seed") { state.seed = Math.max(1, parseInt(m.value) || 1); run(0); }
+    else if (m.type === "random") newSeed();
+    else if (m.type === "play") setPlaying(true);
+    else if (m.type === "pause") setPlaying(false);
+    else if (m.type === "live") { if (!!m.value !== live.on) $("tlLive").click(); }
+    else if (m.type === "hello" && m.osc) appendLog(`OSC: ${m.osc}\n`, "muted");
+  };
+}
 
 // ================================================================== video export (desktop)
 let caps = null;
@@ -1109,6 +1367,8 @@ document.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
   const inEditor = cm ? cm.hasFocus() : document.activeElement === $("code");
   const typing = inEditor || ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName);
+  if (live.on && document.activeElement === canvas && !mod) return;     // keys go to the sketch
+  if (!typing && !mod && e.key.toLowerCase() === "i" && state.animated) { e.preventDefault(); $("tlLive").click(); return; }
   if (mod && e.key === "Enter") { e.preventDefault(); e.shiftKey ? newSeed() : run(0); }
   else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(e.shiftKey); }
   else if (mod && e.key.toLowerCase() === "o" && DESKTOP) { e.preventDefault(); $("files").focus(); $("files").showPicker?.(); }
@@ -1420,7 +1680,7 @@ if (DESKTOP) {
   $("loading").classList.remove("on");
   for (const e of state.examples) $("examples").add(new Option(e.title, e.name));
   buildReference();
-  if (DESKTOP) { refreshFiles(); loadCapabilities(); loadBlenderStatus(); }
+  if (DESKTOP) { refreshFiles(); loadCapabilities(); loadBlenderStatus(); connectEvents(); }
   let src = saved.source && saved.source.trim() ? saved.source : (state.examples[0] || { source: "" }).source;
   if (DESKTOP && saved.file) {
     // reopen the last file; keep unsaved edits from the last session if there were any

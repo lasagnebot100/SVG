@@ -84,7 +84,7 @@ def _parse_hex(s: str) -> Color:
 
 def to_color(args, mode: str = "rgb") -> Color:
     """Accepts the many p5-style colour forms:
-    gray | gray, alpha | r, g, b | r, g, b, a | '#hex' | 'name' | Color | (r, g, b[, a]).
+    gray | gray, alpha | r, g, b | r, g, b, a | '#hex' | '#hex', alpha | 'name' | Color | (r, g, b[, a]).
     In RGB mode alpha is 0–255 (like p5); in HSB mode h 0–360, s/b 0–100, alpha 0–1."""
     if len(args) == 1:
         v = args[0]
@@ -100,6 +100,9 @@ def to_color(args, mode: str = "rgb") -> Color:
         if isinstance(v, (tuple, list)):
             return to_color(tuple(v), mode)
         args = (v,)
+    if len(args) == 2 and isinstance(args[0], (str, Color)):      # p5: fill("#ff0000", 128)
+        base = to_color((args[0],), mode)
+        return base.alpha(float(args[1]) / (1.0 if mode == "hsb" else 255.0))
     nums = [float(x) for x in args]
     if mode == "hsb":
         if len(nums) == 1:

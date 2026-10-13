@@ -14,7 +14,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from .color import Color, Gradient
 from .core import Item, Sketch
 from .render_svg import render_svg
-from .runner import MAX_LOG, SKETCH_FILE, _error_info, _seed_libraries, build_namespace
+from .runner import (INPUT_CALLBACKS, INPUT_DEFAULTS, MAX_LOG, SKETCH_FILE, _error_info, _seed_libraries,
+                     _track_state, build_namespace, set_input_vars)
 
 
 def _is_opaque_background(it: Item) -> bool:
@@ -36,6 +37,11 @@ def trim_frame(items: list[Item]) -> tuple[list[Item], bool]:
     return items, False
 
 
+class _Event(dict):
+    """Event passed to callbacks that take an argument: ev.x, ev.key, ev["button"] …"""
+    __getattr__ = dict.get
+
+
 class Frame:
     __slots__ = ("index", "items", "clears", "log", "error", "ms", "meshes")
 
@@ -53,8 +59,12 @@ class Animation:
     """Runs a sketch; call next_frame() repeatedly (frames are produced strictly in order)."""
 
     def __init__(self, source: str, params: dict | None = None, seed: int = 1,
-                 frames: int | None = None, fps: float | None = None):
+                 frames: int | None = None, fps: float | None = None, endless: bool = False):
         self.source = source
+        self.endless = endless         # live mode: never ends, t keeps looping
+        self._input = dict(INPUT_DEFAULTS)
+        self._events: list = []
+        self._live_input = False
         self.sk = sk = Sketch(seed, params)
         sk.apply_keys(1)
         self.ns = ns = build_namespace(sk)
@@ -76,6 +86,7 @@ class Animation:
             self.error = _error_info(exc)
         self.log = buf.getvalue()[:MAX_LOG]
         self.draw = ns.get("draw") if callable(ns.get("draw")) else None
+        sk.finalize_timing()
         if frames is not None:
             sk.anim_frames = max(1, int(frames))
         if fps is not None:
@@ -101,7 +112,64 @@ class Animation:
 
     @property
     def done(self) -> bool:
-        return self.error is not None or self.frame >= self.total
+        if self.error is not None:
+            return True
+        return False if self.endless else self.frame >= self.total
+
+    # -------------------------------------------------------------- input (live mode)
+    def set_input(self, state: dict | None = None, events: list | None = None):
+        """Mouse/keyboard state for the next frame (canvas units) plus events since the last frame.
+
+        events: [{"type": "mouse_pressed", "x": …, "y": …, "button": "left"}, {"type": "key_pressed",
+        "key": "a", "key_code": 65}, {"type": "mouse_wheel", "delta": 120}, …]
+        """
+        self._live_input = True
+        if state:
+            self._input.update({k: v for k, v in state.items() if k in INPUT_DEFAULTS or k == "midi"})
+        if events:
+            self._events.extend(events)
+
+    def _apply_input(self, i: int):
+        sk, ns = self.sk, self.ns
+        if not self._live_input and i < len(sk.input_track):            # replay a recording
+            entry = sk.input_track[i] or {}
+            self._input.update(_track_state(entry))
+            if entry.get("m"):
+                self._input["midi"] = entry["m"]
+            self._events.extend(entry.get("e") or [])
+        prev = sk.input
+        state = dict(self._input)
+        state["pmouse_x"] = prev.get("mouse_x", state["mouse_x"])
+        state["pmouse_y"] = prev.get("mouse_y", state["mouse_y"])
+        events, self._events = self._events, []
+        for ev in events:                        # p5 calls event handlers between frames
+            typ = ev.get("type")
+            if typ not in INPUT_CALLBACKS:
+                continue
+            if "x" in ev:
+                ns.update(pmouse_x=ns.get("mouse_x", 0.0), pmouse_y=ns.get("mouse_y", 0.0),
+                          mouse_x=ev["x"], mouse_y=ev["y"])
+            if typ == "mouse_pressed":
+                ns.update(mouse_is_pressed=True, mouse_button=ev.get("button", "left"))
+            elif typ == "mouse_released":
+                ns["mouse_is_pressed"] = False
+            elif typ in ("key_pressed", "key_typed"):
+                ns.update(key=ev.get("key", ""), key_code=ev.get("key_code", 0), key_is_pressed=True)
+            elif typ == "key_released":
+                ns.update(key=ev.get("key", ""), key_code=ev.get("key_code", 0), key_is_pressed=False)
+            set_input_vars(ns, {})                # refresh camelCase aliases
+            fn = ns.get(typ)
+            if callable(fn):
+                try:
+                    takes_arg = fn.__code__.co_argcount > 0
+                except AttributeError:
+                    takes_arg = False
+                if takes_arg:
+                    fn(ev.get("delta", 0.0) if typ == "mouse_wheel" else _Event(ev))
+                else:
+                    fn()
+        sk.input = state
+        set_input_vars(ns, state)
 
     def info(self) -> dict:
         return {"animated": self.animated, "frames": self.total, "fps": self.fps,
@@ -122,7 +190,7 @@ class Animation:
         self._pending_setup_meshes = []
         sk.begin_frame3d()
         sk.apply_keys(i + 1)                  # animated sliders
-        ns.update(frame_count=i + 1, t=i / self.total, time=i / self.fps,
+        ns.update(frame_count=i + 1, t=(i % self.total) / self.total, time=i / self.fps,
                   frames=self.total, fps=self.fps)
         buf = io.StringIO()
         err = None
@@ -130,6 +198,7 @@ class Animation:
         if self.draw is not None:
             try:
                 with redirect_stdout(buf), redirect_stderr(buf):
+                    self._apply_input(i)
                     self.draw()
                     if sk._shape is not None:
                         sk.end_shape()

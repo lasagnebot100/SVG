@@ -149,6 +149,57 @@ def anim_frames(req: dict) -> dict:
             "sketch_error": err}
 
 
+_LIVE: dict = {"key": None, "anim": None}
+
+
+def anim_live(req: dict) -> dict:
+    """Live mode: one frame per call with the current mouse/keyboard/MIDI state.
+
+    The animation keeps running (state persists) until the source or seed changes or
+    {"restart": true} is sent. Sliders update without a restart – param() calls inside
+    draw() see the new values immediately.
+    """
+    from .sketch.animation import Animation
+
+    source, params, seed = req.get("source", ""), dict(req.get("params") or {}), int(req.get("seed") or 1)
+    params.pop("__input__", None)                  # live input replaces a recording
+    keys = params.pop("__keys__", None)
+    key = (source, seed)
+    anim = _LIVE["anim"]
+    info = None
+    if anim is None or _LIVE["key"] != key or req.get("restart"):
+        anim = Animation(source, params, seed, endless=True)
+        _LIVE.update(key=key, anim=anim)
+        info = anim.info()
+        info["log"] = anim.log
+    anim.sk._param_values.update(params)
+    if keys is not None:
+        anim.sk._param_keys = keys
+    anim.set_input(req.get("input"), req.get("events"))
+    out = {"info": info, "sketch_error": anim.error}
+    if anim.error:
+        return out
+    fr = anim.next_frame()
+    if fr is None:
+        return {**out, "sketch_error": anim.error}
+    osc_out, anim.sk._osc_out = anim.sk._osc_out, []
+    return {**out, "frame": {"index": fr.index, "svg": anim.frame_svg(fr), "clears": fr.clears,
+                             "ms": round(fr.ms, 1)},
+            "log": fr.log, "sketch_error": fr.error, "osc_out": osc_out}
+
+
+def audio_data(req: dict) -> dict:
+    """An audio file of the sketch for playback in the browser (base64)."""
+    from .sketch.audio import audio_file
+    path = audio_file(str(req.get("name", "")))
+    mime = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".flac": "audio/flac",
+            ".m4a": "audio/mp4", ".aac": "audio/aac", ".opus": "audio/ogg"}.get(path.suffix.lower(),
+                                                                                  "application/octet-stream")
+    if path.stat().st_size > 60 * 1024 * 1024:
+        return {"error": "Audiodatei zu groß für die Wiedergabe im Browser (max. 60 MB)"}
+    return {"mime": mime, "base64": base64.b64encode(path.read_bytes()).decode()}
+
+
 def sketch_export(req: dict) -> dict:
     """Render a whole animation to a file (used by the CLI-less desktop export jobs)."""
     from .sketch.video import export_animation
@@ -174,10 +225,13 @@ COMMANDS = {
     "anim_frames": anim_frames,
     "sketch_thumb": sketch_thumb,
     "sketch_3d": sketch_3d,
+    "anim_live": anim_live,
+    "audio_data": audio_data,
     "export_capabilities": export_capabilities,
 }
 # commands that execute user code (the server runs them in a separate process)
-USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames", "sketch_thumb", "sketch_3d"}
+USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames", "sketch_thumb", "sketch_3d",
+                      "anim_live", "audio_data"}
 
 
 def dispatch(cmd: str, req: dict) -> dict:
@@ -187,6 +241,10 @@ def dispatch(cmd: str, req: dict) -> dict:
     if "asset_dirs" in req:            # where load_image("foto.jpg") & co. look for files
         from .sketch import data
         data.ASSET_DIRS[:] = [str(d) for d in req["asset_dirs"]]
+    if "osc" in req:                   # latest OSC values from the server's receiver
+        from .sketch.core import OSC_VALUES
+        OSC_VALUES.clear()
+        OSC_VALUES.update({str(k): list(v) for k, v in (req["osc"] or {}).items()})
     return fn(req)
 
 

@@ -108,5 +108,153 @@ class ThreeDTests(unittest.TestCase):
                 self.assertIsNone(r["error"], r["error"])
 
 
+class AudioTests(unittest.TestCase):
+    def test_sample_analysis(self):
+        from plotart.sketch.audio import load_audio
+        a = load_audio("beispiel:beat.wav")
+        self.assertAlmostEqual(a.duration, 8.0, 2)
+        beats = a.beats()
+        self.assertGreaterEqual(len(beats), 15)                          # 120 BPM → every 0.5 s
+        self.assertLess(abs(beats[1] - 0.5), 0.03)
+        self.assertTrue(a.beat(0.5))
+        self.assertFalse(a.beat(0.75))
+        for v in a.spectrum(16, 0.5) + [a.level(0.5), a.bass(0.5), a.mid(0.5), a.treble(0.5)]:
+            self.assertTrue(0.0 <= v <= 1.0)
+        self.assertGreater(a.level(0.5), a.level(0.45))                  # kick louder than the tail
+        self.assertEqual(len(a.waveform(64, 1.0)), 64)
+        self.assertEqual(a.frames(30), 240)
+
+    def test_wav_formats(self):
+        import io, struct, wave
+        from plotart.sketch.audio import _decode_wav
+        for width in (1, 2, 3, 4):
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as w:
+                w.setnchannels(2); w.setsampwidth(width); w.setframerate(44100)
+                full = 2 ** (8 * width - 1) - 1
+                frames = b""
+                for i in range(4410):
+                    v = int(full * 0.5 * math.sin(math.tau * 441 * i / 44100))
+                    if width == 1:
+                        frames += bytes([v + 128]) * 2
+                    else:
+                        frames += v.to_bytes(width, "little", signed=True) * 2
+                w.writeframes(frames)
+            samples, rate = _decode_wav(buf.getvalue())
+            self.assertEqual(rate, 22050)
+            self.assertAlmostEqual(len(samples), 2205, delta=2)
+            self.assertAlmostEqual(max(samples), 0.5, delta=0.02)
+
+    def test_sketch_length_follows_sound(self):
+        r = run_sketch('animation(fps=24)\na = load_audio("beispiel:beat.wav")\ndef draw():\n    background(0)')
+        self.assertEqual(r["frames"], 192)
+        self.assertEqual(r["audio"], ["beispiel:beat.wav"])
+        r = run_sketch('a = load_audio("beispiel:beat.wav")\nanimation(frames=10)\ndef draw():\n    pass')
+        self.assertEqual(r["frames"], 10)                                # explicit length wins
+
+    def test_audio_data_command(self):
+        out = bridge.dispatch("audio_data", {"name": "beispiel:beat.wav"})
+        self.assertEqual(out["mime"], "audio/wav")
+        self.assertTrue(base64.b64decode(out["base64"]).startswith(b"RIFF"))
+
+    @unittest.skipUnless(HAS_PIL and importlib.util.find_spec("shutil") and __import__("shutil").which("ffmpeg"),
+                         "ffmpeg/Pillow fehlt")
+    def test_video_contains_sound(self):
+        import subprocess, tempfile
+        from plotart.sketch.video import export_animation
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "v.mp4"
+            export_animation('load_audio("beispiel:beat.wav")\nanimation(frames=15)\ndef draw():\n    background(0)',
+                             str(out), "mp4", scale=0.1)
+            probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+                                    str(out)], capture_output=True, text=True).stdout.split()
+            self.assertEqual(sorted(probe), ["audio", "video"])
+
+
+class InteractionTests(unittest.TestCase):
+    SRC = ('pts = []\ndef mouse_pressed():\n    pts.append((mouse_x, mouse_y))\n'
+           'def key_pressed(ev):\n    print("key", ev.key, keyIsPressed)\n'
+           'def draw():\n    background(255)\n    print(frame_count, len(pts), mouseX, pmouse_x, param("Größe", 5, 1, 9))\n'
+           '    osc_send("/f", frame_count)\n')
+
+    def test_live_command(self):
+        bridge._LIVE.update(key=None, anim=None)
+        r = bridge.dispatch("anim_live", {"source": self.SRC, "input": {"mouse_x": 10, "mouse_y": 5}})
+        self.assertIsNotNone(r["info"])
+        self.assertEqual(r["log"].split(), ["1", "0", "10", "10", "5"])
+        self.assertEqual(r["osc_out"], [["/f", [1]]] if isinstance(r["osc_out"][0], list) else [("/f", [1])])
+        r = bridge.dispatch("anim_live", {"source": self.SRC, "params": {"Größe": 7},
+                                          "input": {"mouse_x": 20, "mouse_y": 5, "mouse_is_pressed": True},
+                                          "events": [{"type": "mouse_pressed", "x": 20, "y": 5},
+                                                     {"type": "key_pressed", "key": "q", "key_code": 81}]})
+        self.assertIsNone(r["info"])                                     # same session, no restart
+        self.assertEqual(r["log"].split(), ["key", "q", "True", "2", "1", "20", "10", "7"])
+        r = bridge.dispatch("anim_live", {"source": self.SRC, "restart": True})
+        self.assertEqual(r["log"].split()[:2], ["1", "0"])
+
+    def test_live_runs_past_the_end(self):
+        a = Animation('animation(frames=3)\ndef draw():\n    print(frame_count, round(t, 3))', endless=True)
+        logs = [a.next_frame().log.split() for _ in range(5)]
+        self.assertEqual(logs[3], ["4", "0.0"])
+        self.assertFalse(a.done)
+
+    def test_recorded_input_replays(self):
+        track = [{"x": 1, "y": 1}, {"x": 50, "y": 60, "p": 1, "e": [{"type": "mouse_pressed", "x": 50, "y": 60}]}]
+        a = Animation(self.SRC, {"__input__": track})
+        out = [a.next_frame().log.split() for _ in range(3)]
+        self.assertEqual(out[0][:3], ["1", "0", "1"])
+        self.assertEqual(out[1][:4], ["2", "1", "50", "1"])
+        self.assertEqual(out[2][:4], ["3", "1", "50", "50"])            # pmouse catches up
+
+    def test_interactive_flag_and_midi(self):
+        self.assertTrue(run_sketch(self.SRC)["interactive"])
+        self.assertFalse(run_sketch("circle(1, 1, 1)")["interactive"])
+        a = Animation('def draw():\n    print(midi(7), midi(1, 0.5))', endless=True)
+        a.set_input({"midi": {"7": 0.25}})
+        self.assertEqual(a.next_frame().log.split(), ["0.25", "0.5"])
+
+    def test_color_string_with_alpha(self):
+        from plotart.sketch.color import to_color
+        self.assertAlmostEqual(to_color(("#ff0000", 51)).a, 0.2)
+        self.assertEqual(to_color(("#ff0000", 51)).hex, "#ff0000")
+
+
+class OSCTests(unittest.TestCase):
+    def test_roundtrip(self):
+        from plotart.osc import decode, encode_message
+        pkt = encode_message("/td/level", 0.5, 3, "hallo", True)
+        self.assertEqual(len(pkt) % 4, 0)
+        (addr, vals), = decode(pkt)
+        self.assertEqual(addr, "/td/level")
+        self.assertEqual(vals, [0.5, 3, "hallo", True])
+        bundle = b"#bundle\0" + b"\0" * 8
+        for m in (encode_message("/a", 1), encode_message("/b", 2.0)):
+            bundle += len(m).to_bytes(4, "big") + m
+        self.assertEqual(decode(bundle), [("/a", [1]), ("/b", [2.0])])
+
+    def test_udp_and_sketch(self):
+        import time
+        from plotart.osc import OSCClient, OSCServer
+        got = []
+        srv = OSCServer(0, host="127.0.0.1", on_message=lambda a, v: got.append(a))
+        try:
+            cli = OSCClient("127.0.0.1", srv.port)
+            cli.send("/td/level", 0.75)
+            cli.send("/td/xy", 1.0, 2.0)
+            for _ in range(50):
+                if len(got) >= 2:
+                    break
+                time.sleep(0.02)
+            cli.close()
+            snap = srv.snapshot()
+        finally:
+            srv.close()
+        self.assertEqual(snap["/td/level"], [0.75])
+        r = bridge.dispatch("sketch_run", {"source": 'print(osc("/td/level", 0), osc("/td/xy"), osc("/fehlt", 9))',
+                                           "osc": snap})
+        self.assertEqual(r["log"].split(), ["0.75", "[1.0,", "2.0]", "9"])
+        bridge.dispatch("sketch_run", {"source": "pass", "osc": {}})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -45,6 +45,37 @@ CONSTANTS = {
 }
 CONSTANTS["NORMAL"] = "normal"
 
+# mouse & keyboard (updated per frame in live mode); camelCase aliases like p5.js / py5
+INPUT_DEFAULTS = {"mouse_x": 0.0, "mouse_y": 0.0, "pmouse_x": 0.0, "pmouse_y": 0.0, "mouse_is_pressed": False,
+                  "mouse_button": None, "key": "", "key_code": 0, "key_is_pressed": False, "wheel": 0.0}
+INPUT_ALIASES = {"mouseX": "mouse_x", "mouseY": "mouse_y", "pmouseX": "pmouse_x", "pmouseY": "pmouse_y",
+                 "mouseIsPressed": "mouse_is_pressed", "mouseButton": "mouse_button", "keyCode": "key_code",
+                 "keyIsPressed": "key_is_pressed"}
+INPUT_CALLBACKS = ("mouse_pressed", "mouse_released", "mouse_clicked", "mouse_moved", "mouse_dragged",
+                   "mouse_wheel", "key_pressed", "key_released", "key_typed")
+INTERACTIVE_HINTS = ("mouse_", "pmouse_", "key_", "mouseX", "mouseY", "mouseIsPressed", "keyIsPressed",
+                     "orbit_control", "orbitControl", "osc(", "midi(", "wheel")
+
+
+def _track_state(entry: dict) -> dict:
+    """Compact recorded entry {"x", "y", "p", "b", "k", "kc", "kp", "w"} → input state."""
+    return {"mouse_x": entry.get("x", 0.0), "mouse_y": entry.get("y", 0.0), "mouse_is_pressed": bool(entry.get("p")),
+            "mouse_button": entry.get("b"), "key": entry.get("k", ""), "key_code": entry.get("kc", 0),
+            "key_is_pressed": bool(entry.get("kp")), "wheel": entry.get("w", 0.0)}
+
+
+def set_input_vars(ns: dict, state: dict):
+    for k, v in state.items():
+        if k in INPUT_DEFAULTS:
+            ns[k] = v
+    for alias, name in INPUT_ALIASES.items():
+        ns[alias] = ns.get(name)
+
+
+def is_interactive(source: str) -> bool:
+    return any(h in source for h in INTERACTIVE_HINTS)
+
+
 MATH_NAMES = ["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt", "floor", "ceil",
               "exp", "log", "hypot", "fmod", "copysign", "isclose"]
 
@@ -71,6 +102,7 @@ def build_namespace(sk: Sketch) -> dict:
     ns.update({"math": math, "Color": Color, "Gradient": Gradient,
                "width": int(sk.width), "height": int(sk.height), "seed": sk.seed,
                "frame_count": 1, "t": 0.0, "time": 0.0, "frames": sk.anim_frames, "fps": sk.anim_fps})
+    set_input_vars(ns, {**INPUT_DEFAULTS, **sk.input})
     return ns
 
 
@@ -126,6 +158,9 @@ def execute(source: str, params: dict | None = None, seed: int = 1) -> tuple[Ske
                 fn = ns.get(hook)
                 if callable(fn):
                     if hook == "draw":                 # like p5: fresh transform per frame
+                        sk.finalize_timing()
+                        if sk.input_track:
+                            set_input_vars(ns, _track_state(sk.input_track[0]))
                         sk.reset_matrix()
                         sk._stack.clear()
                         sk.begin_frame3d()
@@ -163,6 +198,8 @@ def run_sketch(source: str, params: dict | None = None, seed: int = 1) -> dict:
         "frames": sk.anim_frames,
         "fps": sk.anim_fps,
         "has3d": bool(sk.meshes3d),
+        "interactive": is_interactive(source),
+        "audio": list(sk.audio_sources),
     }
 
 

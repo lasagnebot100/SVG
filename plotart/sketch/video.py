@@ -47,13 +47,16 @@ def capabilities() -> dict:
 
 
 class _FFmpegWriter:
-    def __init__(self, path: str, w: int, h: int, fps: float, fmt: str):
+    def __init__(self, path: str, w: int, h: int, fps: float, fmt: str, audio: str | None = None):
         exe = find_ffmpeg()
         if not exe:
             raise ExportError("ffmpeg wurde nicht gefunden. Installieren: https://ffmpeg.org/download.html "
                               "oder `pip install imageio-ffmpeg`.")
         args = [exe, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                 "-s", f"{w}x{h}", "-r", f"{fps:g}", "-i", "-"]
+        if audio and fmt in ("mp4", "webm"):
+            args += ["-i", audio, "-map", "0:v", "-map", "1:a", "-shortest"]
+            args += ["-c:a", "aac", "-b:a", "192k"] if fmt == "mp4" else ["-c:a", "libopus", "-b:a", "160k"]
         even = "pad=ceil(iw/2)*2:ceil(ih/2)*2"          # yuv420p needs even dimensions
         if fmt == "mp4":
             args += ["-vf", even, "-c:v", "libx264", "-preset", "medium", "-crf", "17",
@@ -141,7 +144,7 @@ def export_animation(source: str, out_path: str, fmt: str = "mp4", params: dict 
                      seed: int = 1, scale: float | None = None, frames: int | None = None,
                      fps: float | None = None, engine: str = "auto",
                      progress: Callable[[int, int], None] | None = None,
-                     should_stop: Callable[[], bool] | None = None) -> dict:
+                     should_stop: Callable[[], bool] | None = None, with_audio: bool = True) -> dict:
     """Render all frames of an animated sketch into a video/GIF/PNG-ZIP.
 
     Returns {"path", "frames", "fps", "width", "height", "bytes"}. Raises ExportError.
@@ -159,7 +162,11 @@ def export_animation(source: str, out_path: str, fmt: str = "mp4", params: dict 
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     if fmt in ("mp4", "webm") or (fmt == "gif" and find_ffmpeg()):
-        writer = _FFmpegWriter(str(out), w, h, anim.fps, fmt)
+        audio = None
+        if with_audio and fmt in ("mp4", "webm") and anim.sk.audio_sources:
+            from .audio import audio_file
+            audio = str(audio_file(anim.sk.audio_sources[0]))   # the first loaded sound is the soundtrack
+        writer = _FFmpegWriter(str(out), w, h, anim.fps, fmt, audio)
     elif fmt == "gif":
         writer = _GifWriter(str(out), anim.fps)
     else:

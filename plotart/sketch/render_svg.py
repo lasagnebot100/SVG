@@ -90,6 +90,7 @@ def render_svg(sk: Sketch, meta: dict | None = None, items=None) -> str:
     defs = _Defs()
     cache: dict = {}
     body: list[str] = []
+    seam = max(sk.width, sk.height) / 1500
     for it in (sk.items if items is None else items):
         d = it.data
         tr = ""
@@ -127,6 +128,10 @@ def render_svg(sk: Sketch, meta: dict | None = None, items=None) -> str:
                         f'{html.escape(d["s"])}</text>')
             continue
         attrs = _style_attrs(it.style, defs, cache)
+        if k == "path" and d.get("from3d") and (it.style.stroke is None or it.style.weight <= 0) \
+                and isinstance(it.style.fill, Color) and it.style.fill.a >= 0.999:
+            # neighbouring 3D faces: a hairline in the face colour hides antialiasing seams
+            attrs += f' stroke="{it.style.fill.hex}" stroke-width="{_fmt(seam)}" stroke-linejoin="round"'
         if k == "ellipse":
             if abs(d["rx"] - d["ry"]) < 1e-9:
                 body.append(f'<circle cx="{_fmt(d["cx"])}" cy="{_fmt(d["cy"])}" r="{_fmt(d["rx"])}" {attrs}{tr}/>')

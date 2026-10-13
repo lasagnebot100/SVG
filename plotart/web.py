@@ -141,6 +141,17 @@ class Handler(BaseHTTPRequestHandler):
     token: str | None = None          # required when the server is reachable from the network
     sketches: SketchFolder = None
     jobs: dict[str, ExportJob] = {}
+    osc_in = None                     # OSCServer (studio --osc-in PORT)
+    osc_out = None                    # OSCClient (studio --osc-out HOST:PORT)
+    listeners: list = []              # Server-Sent-Event queues of open Studio tabs
+
+    @classmethod
+    def broadcast(cls, msg: dict):
+        for q in list(cls.listeners):
+            try:
+                q.put_nowait(msg)
+            except queue.Full:
+                pass
 
     def log_message(self, fmt, *args):  # keep the console quiet
         pass
@@ -279,12 +290,43 @@ class Handler(BaseHTTPRequestHandler):
             if "/" in name or "\\" in name or target.parent != OUTPUT_DIR.resolve() or not target.is_file():
                 return self._send(b"not found", "text/plain", 404)
             self._send_file(target)
+        elif path == "/api/events":
+            if not self._authorized_query():
+                return self._send(b"forbidden", "text/plain", 403)
+            self._event_stream()
         elif path == "/api/generators":
             if not self._authorized():
                 return self._json({"error": "Zugangs-Token fehlt oder ist falsch"}, 403)
             self._json({**bridge.schema(), "output_dir": str(OUTPUT_DIR.resolve())})
         else:
             self._send(b"not found", "text/plain", 404)
+
+    def _event_stream(self):
+        """Server-Sent Events: remote control of the Studio (OSC → slider, seed, play …)."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        q = queue.Queue(maxsize=500)
+        Handler.listeners.append(q)
+        hello = {"type": "hello"}
+        if self.osc_in is not None:
+            hello["osc"] = f"empfange auf Port {self.osc_in.port}" + (
+                f", sende an {self.osc_out.addr[0]}:{self.osc_out.addr[1]}" if self.osc_out else "")
+        try:
+            self.wfile.write(f"data: {json.dumps(hello)}\n\n".encode())
+            self.wfile.flush()
+            while True:
+                try:
+                    msg = q.get(timeout=15)
+                    self.wfile.write(f"data: {json.dumps(msg, ensure_ascii=False)}\n\n".encode())
+                except queue.Empty:
+                    self.wfile.write(b": ping\n\n")
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        finally:
+            Handler.listeners.remove(q)
 
     def do_POST(self):
         if not self._authorized():
@@ -303,7 +345,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(out, 400 if out.get("error") and out.get("state") != "error" else 200)
             elif cmd in bridge.USER_CODE_COMMANDS:
                 req["asset_dirs"] = [str(self.sketches.dir)]
+                if self.osc_in is not None:
+                    req["osc"] = self.osc_in.snapshot()
                 out = self.worker.call(cmd, req)
+                if self.osc_out is not None and out.get("osc_out"):
+                    for address, values in out["osc_out"]:
+                        try:
+                            self.osc_out.send(address, *values)
+                        except OSError:
+                            pass
                 self._json(out, 500 if "error" in out else 200)
             elif cmd in bridge.COMMANDS:
                 self._json(bridge.dispatch(cmd, req))
@@ -314,8 +364,31 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": str(exc)}, 500)
 
 
+def _osc_to_studio(address: str, values: list):
+    """Control messages become Studio events; everything else is read by osc() in sketches."""
+    v = values[0] if values else None
+    if address.startswith("/param/") and v is not None:
+        Handler.broadcast({"type": "param", "name": unquote(address[len("/param/"):]), "value": v})
+    elif address == "/seed" and v is not None:
+        Handler.broadcast({"type": "seed", "value": v})
+    elif address in ("/random", "/play", "/pause"):
+        Handler.broadcast({"type": address[1:]})
+    elif address == "/live":
+        Handler.broadcast({"type": "live", "value": bool(v) if v is not None else True})
+
+
 def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
-          timeout: float = 30.0, sketch_dir: str | Path = "skizzen"):
+          timeout: float = 30.0, sketch_dir: str | Path = "skizzen",
+          osc_in: int | None = None, osc_out: str | None = None):
+    if osc_in:
+        from .osc import OSCServer
+        Handler.osc_in = OSCServer(osc_in, on_message=_osc_to_studio)
+        print(f"OSC: empfange auf UDP-Port {Handler.osc_in.port} (/param/<Name>, /seed, /play, /pause, osc() in Skizzen)")
+    if osc_out:
+        from .osc import OSCClient
+        h, _, pt = osc_out.rpartition(":")
+        Handler.osc_out = OSCClient(h or "127.0.0.1", int(pt))
+        print(f"OSC: sende osc_send()-Nachrichten an {h or '127.0.0.1'}:{pt}")
     Handler.worker = SketchWorker(timeout=timeout)
     Handler.sketches = SketchFolder(sketch_dir)
     Handler.token = None if host in LOCAL_HOSTS else secrets.token_urlsafe(12)
