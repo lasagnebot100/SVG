@@ -55,7 +55,8 @@ def _export_entry(q, req):
             out_dir = Path(req["out_path"]).with_suffix("")
             res = export_series(req["source"], out_dir, req["seeds"], req.get("params"),
                                 formats=req.get("formats") or ["png"], scale=req.get("scale"),
-                                pen_width=float(req.get("pen_width") or 0.45), stem=req.get("stem") or "skizze",
+                                pen_width=float(req.get("pen_width") or 0.45),
+                                hidden_lines=bool(req.get("hidden_lines")), stem=req.get("stem") or "skizze",
                                 progress=progress, zip_path=req["out_path"])
             res = {**res, "bytes": os.path.getsize(req["out_path"]), "width": 0, "height": 0}
             q.put(("done", res))

@@ -53,7 +53,8 @@ def sketch_plotter(req: dict) -> dict:
     if err:
         return {"sketch_error": err}
     d = to_plotter(sk, pen_width=float(req.get("pen_width") or 0.45),
-                   outline_fills=bool(req.get("outline_fills", True)))
+                   outline_fills=bool(req.get("outline_fills", True)),
+                   hidden_lines=bool(req.get("hidden_lines")))
     return {"svg": to_svg(d), "stats": d.stats()}
 
 
@@ -64,6 +65,23 @@ def sketch_png(req: dict) -> dict:
         return {"sketch_error": err}
     png = render_png(sk, scale=req.get("scale"))
     return {"png_base64": base64.b64encode(png).decode()}
+
+
+def sketch_3d(req: dict) -> dict:
+    """3D shapes of the sketch as .glb (default) or .obj + .mtl (base64)."""
+    from .sketch.export3d import to_glb, to_obj
+    sk, log, err, _ = _execute(req)
+    if err:
+        return {"sketch_error": err}
+    if not sk.meshes3d:
+        return {"error": "Die Skizze enthält keine 3D-Formen (box, sphere, …)."}
+    scale = float(req.get("scale") or 0.01)
+    if req.get("format") == "obj":
+        obj, mtl = to_obj(sk.meshes3d, sk.width, sk.height, scale, name=req.get("name") or "plotart")
+        return {"obj_base64": base64.b64encode(obj.encode()).decode(),
+                "mtl_base64": base64.b64encode(mtl.encode()).decode(), "meshes": len(sk.meshes3d)}
+    return {"glb_base64": base64.b64encode(to_glb(sk.meshes3d, sk.width, sk.height, scale)).decode(),
+            "meshes": len(sk.meshes3d)}
 
 
 def sketch_thumb(req: dict) -> dict:
@@ -155,10 +173,11 @@ COMMANDS = {
     "sketch_reference": sketch_reference,
     "anim_frames": anim_frames,
     "sketch_thumb": sketch_thumb,
+    "sketch_3d": sketch_3d,
     "export_capabilities": export_capabilities,
 }
 # commands that execute user code (the server runs them in a separate process)
-USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames", "sketch_thumb"}
+USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames", "sketch_thumb", "sketch_3d"}
 
 
 def dispatch(cmd: str, req: dict) -> dict:

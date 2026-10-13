@@ -334,20 +334,37 @@ def _paste_clipped(target, pic, x, y):
 
 
 # ---------------------------------------------------------------------------- plotter
+def _opaque(paint) -> bool:
+    if isinstance(paint, Gradient):
+        return all(c.a >= 0.999 for _, c in paint.stops)
+    return isinstance(paint, Color) and paint.a >= 0.999
+
+
 def to_plotter(sk: Sketch, pen_width: float = 0.45, outline_fills: bool = True,
-               optimize: bool = True) -> Drawing:
+               optimize: bool = True, hidden_lines: bool = False) -> Drawing:
     """Stroke geometry as a plotter Drawing (mm), one layer per colour.
 
     Fills are not hatched – shapes without outline get their outline drawn
-    (outline_fills). Overlaps are not hidden: a plotter draws everything.
+    (outline_fills). By default a plotter draws everything, overlaps included;
+    hidden_lines=True removes lines covered by later opaque fills (3D, overlapping shapes).
     """
     f = 1.0 if sk.unit == "mm" else MM_PER_PX
     d = Drawing(sk.width * f, sk.height * f, margin=0, pen_width=pen_width)
     layers: dict[str, int] = {}
+    occ = None
+    if hidden_lines:
+        from .occlusion import Occluder
+        occ = Occluder(sk.width * f, sk.height * f)
     for it in sk.items:
+        if it.kind == "background" and occ is not None and _opaque(it.style.fill) and it.style.blend in ("normal", "blend"):
+            occ.clear()
         if it.kind in ("background", "image", "text"):
             continue
         st = it.style
+        subs = None
+        if occ is not None and _opaque(st.fill) and st.blend in ("normal", "blend"):
+            subs = flatten(it, sk.width, sk.height, tol=0.05 / f, scale=f)
+            occ.occlude([pts for pts, _ in subs], evenodd=bool(it.data.get("evenodd")))
         paint = st.stroke if st.stroke is not None and st.weight > 0 else (st.fill if outline_fills else None)
         if paint is None:
             continue
@@ -356,8 +373,15 @@ def to_plotter(sk: Sketch, pen_width: float = 0.45, outline_fills: bool = True,
         if paint.a <= 0:
             continue
         layer = layers.setdefault(paint.hex, len(layers) + 1)
-        for pts, closed in flatten(it, sk.width, sk.height, tol=0.05 / f, scale=f):
-            d.add(pts + [pts[0]] if closed else pts, layer)
+        for pts, closed in subs if subs is not None else flatten(it, sk.width, sk.height, tol=0.05 / f, scale=f):
+            line = pts + [pts[0]] if closed else pts
+            if occ is not None:
+                occ.add_line(line, layer)
+            else:
+                d.add(line, layer)
+    if occ is not None:
+        for line, layer in occ.polylines():
+            d.add(line, layer)
     d.colors = {layer: col for col, layer in layers.items()}
     d.clip_to_box()
     if optimize:

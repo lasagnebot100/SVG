@@ -30,17 +30,44 @@ class SceneError(Exception):
     pass
 
 
-def _convert_items(items, sk, k, order_start):
-    """Sketch items → shapes. Returns (shapes, next_order)."""
+def _convert_meshes(meshes, sk, k):
+    """World-space 3D meshes → real Blender meshes (y up; mirroring y reverses the winding)."""
+    w, h = sk.width, sk.height
+    out = []
+    for m in meshes:
+        verts = [((x - w / 2) * k, (h / 2 - y) * k, z * k) for x, y, z in m["verts"]]
+        r, g, b, a = m["color"]
+        shape = {"type": "mesh3d", "name": m["name"], "verts": verts,
+                 "faces": [list(reversed(f)) for f in m["faces"]], "line": bool(m.get("line")),
+                 "color": (round(r / 255, 4), round(g / 255, 4), round(b / 255, 4), round(a / 255, 4))}
+        out.append(shape)
+    return out
+
+
+def _convert_items(items, sk, k, order_start, meshes=()):
+    """Sketch items → shapes. Returns (shapes, next_order).
+
+    3D shapes come as real meshes (`meshes`) instead of their projected 2D outlines;
+    2D shapes drawn before them are moved behind the 3D objects.
+    """
     w, h = sk.width, sk.height
 
     def bu(x, y):
         return ((x - w / 2) * k, (h / 2 - y) * k)
 
-    shapes = []
+    shapes = _convert_meshes(meshes, sk, k)
+    n3d = len(shapes)
+    zmin = min((v[2] for s in shapes for v in s["verts"]), default=0.0)
+    before3d = None                             # number of shapes that were drawn before the 3D ones
     order = order_start
+    for s in shapes:
+        s["order"] = order
     tol = max(w, h) / 2000                      # chord error in sketch units
     for it in items:
+        if isinstance(it.data, dict) and it.data.get("from3d"):
+            if before3d is None:
+                before3d = len(shapes)
+            continue
         st = it.style
         m = it.matrix or IDENTITY
         if it.kind == "background":
@@ -85,6 +112,11 @@ def _convert_items(items, sk, k, order_start):
             shapes.append({"type": "stroke", "paths": paths, "width": st.weight * _scale_of(m) * k,
                            "cap": st.cap, "color": stroke, "order": order})
             order += 1
+    if n3d and before3d is not None:
+        gap = max(w, h) * k * 0.01
+        zmax = max(v[2] for s in shapes[:n3d] for v in s["verts"])
+        for i, s in enumerate(shapes[n3d:], n3d):
+            s["z_base"] = min(0.0, zmin) - gap if i < before3d else max(0.0, zmax) + gap
     return shapes, order
 
 
@@ -113,7 +145,7 @@ def build_scene(source: str, params: dict | None = None, seed: int = 1, *, width
     order = 0
     if frame is not None:                         # one still image, trails included
         target = max(1, min(int(frame), anim.total)) - 1
-        acc = []
+        acc, meshes = [], []
         while anim.frame <= target:
             fr = anim.next_frame()
             if fr is None:
@@ -121,7 +153,8 @@ def build_scene(source: str, params: dict | None = None, seed: int = 1, *, width
             if fr.error:
                 raise SceneError(f"Bild {fr.index + 1}: {_err(fr.error)}")
             acc = list(fr.items) if fr.clears else acc + list(fr.items)
-        shapes, order = _convert_items(acc, sk, k, 0)
+            meshes = fr.meshes
+        shapes, order = _convert_items(acc, sk, k, 0, meshes)
         scene["frames"].append({"index": target, "clears": True, "shapes": shapes})
         scene["params"] = [p.to_json() for p in sk.param_specs]
         return scene
@@ -133,7 +166,7 @@ def build_scene(source: str, params: dict | None = None, seed: int = 1, *, width
             raise SceneError(f"Bild {fr.index + 1}: {_err(fr.error)}")
         if fr.clears:
             order = 0
-        shapes, order = _convert_items(fr.items, sk, k, order)
+        shapes, order = _convert_items(fr.items, sk, k, order, fr.meshes)
         scene["frames"].append({"index": fr.index, "clears": fr.clears, "shapes": shapes})
     scene["params"] = [p.to_json() for p in sk.param_specs]
     return scene

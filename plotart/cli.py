@@ -151,7 +151,7 @@ def _run_sketch_cmd(args) -> int:
             if sys.stdout.isatty():
                 print(f"\r  Variante {i}/{n}", end="", flush=True)
         res = export_series(source, out_dir, seeds, params, formats=formats, scale=args.scale, stem=stem,
-                            pen_width=args.pen, progress=progress)
+                            pen_width=args.pen, hidden_lines=args.hidden_lines, progress=progress)
         if sys.stdout.isatty():
             print()
         print(f"✓ {res['dir']}  –  {res['count']} Varianten" + (f", {res['errors']} mit Fehler" if res["errors"] else "")
@@ -198,11 +198,26 @@ def _run_sketch_cmd(args) -> int:
                 f.write(render_png(sk, scale=args.scale))
             written.append(base + ".png")
         if args.plotter:
-            d = to_plotter(sk, pen_width=args.pen)
+            d = to_plotter(sk, pen_width=args.pen, hidden_lines=args.hidden_lines)
             with open(base + "_plotter.svg", "w", encoding="utf-8") as f:
                 f.write(to_svg(d))
             st = d.stats()
             written.append(f"{base}_plotter.svg ({st['paths']} Pfade, ca. {st['minutes']} min)")
+        if args.export3d and sk.meshes3d:
+            from .sketch.export3d import to_glb, to_obj
+            if args.export3d == "glb":
+                with open(base + ".glb", "wb") as f:
+                    f.write(to_glb(sk.meshes3d, sk.width, sk.height))
+                written.append(base + ".glb")
+            else:
+                obj, mtl = to_obj(sk.meshes3d, sk.width, sk.height, name=os.path.basename(base))
+                with open(base + ".obj", "w", encoding="utf-8") as f:
+                    f.write(obj)
+                with open(base + ".mtl", "w", encoding="utf-8") as f:
+                    f.write(mtl)
+                written.append(base + ".obj")
+        elif args.export3d:
+            print("Hinweis: keine 3D-Formen in der Skizze – kein 3D-Export.")
         print(f"✓ Seed {seed} in {ms:.0f} ms → " + ", ".join(written))
     return status
 
@@ -229,6 +244,9 @@ def main(argv=None):
     sk.add_argument("--scale", type=float, help="PNG-Pixel pro Einheit (Standard: 1 bei px, 300 dpi bei mm)")
     sk.add_argument("--plotter", action="store_true", help="zusätzlich Plotter-SVG (nur Linien, optimiert)")
     sk.add_argument("--pen", type=float, default=0.45, help="Stiftbreite für --plotter (mm)")
+    sk.add_argument("--hidden-lines", "--verdeckt", dest="hidden_lines", action="store_true",
+                    help="Plotter: von Flächen verdeckte Linien entfernen (3D, Überlappungen)")
+    sk.add_argument("--3d", dest="export3d", choices=("glb", "obj"), help="3D-Formen als .glb oder .obj exportieren")
     sk.add_argument("--no-svg", action="store_true", help="kein Farb-SVG schreiben")
     sk.add_argument("--sheet", action="store_true",
                     help="Serie: alle Seeds (-s, -n) in einen Ordner mit Kontaktbogen und serie.json")

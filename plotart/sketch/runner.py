@@ -128,10 +128,12 @@ def execute(source: str, params: dict | None = None, seed: int = 1) -> tuple[Ske
                     if hook == "draw":                 # like p5: fresh transform per frame
                         sk.reset_matrix()
                         sk._stack.clear()
+                        sk.begin_frame3d()
                     fn()
             if sk._shape is not None:
                 sk.end_shape()
                 print("Hinweis: end_shape() fehlte und wurde ergänzt.")
+            sk._flush3d()
     except Exception as exc:   # report everything to the editor
         err = _error_info(exc)
     log = buf.getvalue()
@@ -160,6 +162,7 @@ def run_sketch(source: str, params: dict | None = None, seed: int = 1) -> dict:
         "animated": callable((sk.ns or {}).get("draw")) and sk.looping,
         "frames": sk.anim_frames,
         "fps": sk.anim_fps,
+        "has3d": bool(sk.meshes3d),
     }
 
 

@@ -49,6 +49,7 @@ def contact_sheet(thumbs: list[tuple[str, object]], cols: int | None = None, cel
 
 def export_series(source: str, out_dir: str | Path, seeds: list[int], params: dict | None = None,
                   formats=("png",), scale: float | None = None, sheet: bool = True, pen_width: float = 0.45,
+                  hidden_lines: bool = False,
                   stem: str = "skizze", progress: Callable[[int, int], None] | None = None,
                   should_stop: Callable[[], bool] | None = None, zip_path: str | Path | None = None) -> dict:
     """Render every seed into out_dir (PNG/SVG/plotter-SVG), plus kontaktbogen.png and serie.json."""
@@ -79,7 +80,7 @@ def export_series(source: str, out_dir: str | Path, seeds: list[int], params: di
                 entry["files"].append(base.with_suffix(".svg").name)
             if "plotter" in formats:
                 p = out / f"{stem}_{seed}_plotter.svg"
-                p.write_text(to_svg(to_plotter(sk, pen_width=pen_width)), encoding="utf-8")
+                p.write_text(to_svg(to_plotter(sk, pen_width=pen_width, hidden_lines=hidden_lines)), encoding="utf-8")
                 entry["files"].append(p.name)
             thumbs.append((f"Seed {seed}", Image.open(io.BytesIO(png)).convert("RGBA") if png else None))
         entries.append(entry)

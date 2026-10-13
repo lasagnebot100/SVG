@@ -14,11 +14,13 @@ from ..noise import Perlin
 from ..params import Param
 from .color import PALETTES, Color, Gradient, color_ramp, hsb, lerp_color, to_color
 from .png import to_png
+from .three import (I4, Scene3D, from_2d, geo_box, geo_cylinder, geo_ellipsoid, geo_plane, geo_torus, m4_apply,
+                    m4_mul, m4_rot_x, m4_rot_y, m4_rot_z, m4_scale, m4_translate)
 
 IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
-CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Transformation",
-              "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Animation", "Zufall & Noise", "Mathe",
+CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Transformation", "3D",
+              "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Animation", "Ton & Interaktion", "Zufall & Noise", "Mathe",
               "Parameter", "Werkzeuge"]
 
 
@@ -106,6 +108,14 @@ class Sketch:
         self._param_keys = self._param_values.pop("__keys__", None) or {}
         self.param_specs: list[Param] = []
         self.ns: dict | None = None          # namespace of the running sketch
+        # 3D state (see three.py) and input (mouse/keyboard/OSC, filled by the runner)
+        self._m4 = I4
+        self._s3d = None
+        self.meshes3d: list = []
+        self._orbit = None
+        self.input: dict = {}
+        self._osc: dict = {}
+        self.audio_sources: list = []
         # animation settings (used when the sketch defines draw())
         self.anim_frames = 120
         self.anim_fps = 30.0
@@ -118,6 +128,8 @@ class Sketch:
         return to_color(args, self._color_mode)
 
     def _add(self, kind, data, style=None):
+        if self._s3d is not None and not self._s3d.empty:
+            self._flush3d()                   # 2D drawn after 3D lies on top of it
         self.items.append(Item(kind, data, style or self._style,
                                None if self._matrix == IDENTITY else self._matrix))
 
@@ -254,10 +266,12 @@ class Sketch:
         return Gradient("radial", (cx, cy, r), colors)
 
     # ------------------------------------------------------------------ transforms
+    # every transform updates the 2D matrix and the 3D matrix (z = 0 plane = 2D canvas)
     @api("Transformation")
     def push(self):
         """Speichert Stil und Transformation. Auch als `with push(): …` verwendbar."""
-        self._stack.append((self._style, self._matrix, self._color_mode, self._rect_mode, self._ellipse_mode))
+        self._stack.append((self._style, self._matrix, self._color_mode, self._rect_mode, self._ellipse_mode,
+                            self._m4))
         return _PushContext(self)
 
     @api("Transformation")
@@ -265,38 +279,239 @@ class Sketch:
         """Stellt den mit push() gespeicherten Zustand wieder her."""
         if not self._stack:
             raise SketchError("pop() ohne vorheriges push()")
-        self._style, self._matrix, self._color_mode, self._rect_mode, self._ellipse_mode = self._stack.pop()
+        (self._style, self._matrix, self._color_mode, self._rect_mode, self._ellipse_mode,
+         self._m4) = self._stack.pop()
 
     @api("Transformation")
-    def translate(self, x, y=0):
-        """Verschiebt den Ursprung."""
+    def translate(self, x, y=0, z=0):
+        """Verschiebt den Ursprung (z optional, für 3D)."""
         self._matrix = mat_mul(self._matrix, (1, 0, 0, 1, float(x), float(y)))
+        self._m4 = m4_mul(self._m4, m4_translate(float(x), float(y), float(z)))
 
     @api("Transformation")
     def rotate(self, angle):
         """Dreht um den Ursprung (Winkel im Bogenmaß, z. B. radians(45) oder PI / 4)."""
         c, s = math.cos(angle), math.sin(angle)
         self._matrix = mat_mul(self._matrix, (c, s, -s, c, 0, 0))
+        self._m4 = m4_mul(self._m4, m4_rot_z(angle))
 
     @api("Transformation")
-    def scale(self, sx, sy=None):
-        """Skaliert (sy optional)."""
-        self._matrix = mat_mul(self._matrix, (float(sx), 0, 0, float(sx if sy is None else sy), 0, 0))
+    def scale(self, sx, sy=None, sz=None):
+        """Skaliert (sy, sz optional; ein Wert skaliert in 3D alle Achsen)."""
+        sy2 = float(sx if sy is None else sy)
+        self._matrix = mat_mul(self._matrix, (float(sx), 0, 0, sy2, 0, 0))
+        sz2 = float(sx if sy is None else (1.0 if sz is None else sz))
+        self._m4 = m4_mul(self._m4, m4_scale(float(sx), sy2, sz2))
 
     @api("Transformation")
     def shear_x(self, angle):
         """Schert entlang der x-Achse."""
         self._matrix = mat_mul(self._matrix, (1, 0, math.tan(angle), 1, 0, 0))
+        self._m4 = m4_mul(self._m4, from_2d((1, 0, math.tan(angle), 1, 0, 0)))
 
     @api("Transformation")
     def shear_y(self, angle):
         """Schert entlang der y-Achse."""
         self._matrix = mat_mul(self._matrix, (1, math.tan(angle), 0, 1, 0, 0))
+        self._m4 = m4_mul(self._m4, from_2d((1, math.tan(angle), 0, 1, 0, 0)))
 
     @api("Transformation")
     def reset_matrix(self):
         """Setzt alle Transformationen zurück."""
         self._matrix = IDENTITY
+        self._m4 = I4
+
+    # ------------------------------------------------------------------ 3D
+    def _scene(self) -> Scene3D:
+        if self._s3d is None:
+            self._s3d = Scene3D(self.width, self.height)
+        return self._s3d
+
+    def _mesh(self, name, geo):
+        verts, faces, closed = geo
+        world = [m4_apply(self._m4, v) for v in verts]
+        st = self._style
+        fill = st.fill.average() if isinstance(st.fill, Gradient) else st.fill
+        stroke = st.stroke.average() if isinstance(st.stroke, Gradient) else st.stroke
+        if fill is None and stroke is None:
+            return
+        # a mirrored transform (negative determinant) turns faces inside out → reverse them
+        m = self._m4
+        det = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[1] * (m[4] * m[10] - m[6] * m[8]) + m[2] * (m[4] * m[9] - m[5] * m[8])
+        if det < 0:
+            faces = [list(reversed(f)) for f in faces]
+        sc = self._scene()
+        mid = len(self.meshes3d)
+        for f in faces:
+            sc.faces.append(([world[i] for i in f], fill, stroke if st.weight > 0 else None, st.weight,
+                             closed and fill is not None, mid))
+        self.meshes3d.append({"name": name, "verts": world, "faces": [list(f) for f in faces], "closed": closed,
+                              "color": (fill or stroke).rgba if (fill or stroke) else (255, 255, 255, 255)})
+
+    def begin_frame3d(self):
+        """Start of draw(): like p5, lights must be set again every frame; the camera persists."""
+        if self._s3d is not None:
+            self._flush3d()
+            self._s3d.lights = []
+
+    def _flush3d(self):
+        """Project pending 3D shapes into 2D items (depth sorted)."""
+        sc = self._s3d
+        if sc is None or sc.empty:
+            return
+        sc.width, sc.height = self.width, self.height
+        for pts, fill, stroke, weight, closed in sc.render():
+            style = replace(self._style, fill=fill, stroke=stroke, weight=weight, blend="normal")
+            segs = [("M", *pts[0])] + [("L", *p) for p in pts[1:]]
+            self.items.append(Item("path", {"subpaths": [segs], "closed": [closed], "evenodd": False,
+                                            "from3d": True}, style, None))
+        sc.faces.clear()
+        sc.lines.clear()
+
+    @api("3D")
+    def box(self, w, h=None, d=None):
+        """Quader (Würfel mit einer Angabe), Mittelpunkt im Ursprung."""
+        h = w if h is None else h
+        self._mesh("Quader", geo_box(w, h, w if d is None else d))
+
+    @api("3D")
+    def sphere(self, r, detail_x=24, detail_y=16):
+        """Kugel mit Radius r."""
+        self._mesh("Kugel", geo_ellipsoid(r, r, r, max(3, int(detail_x)), max(2, int(detail_y))))
+
+    @api("3D")
+    def ellipsoid(self, rx, ry, rz, detail_x=24, detail_y=16):
+        """Ellipsoid mit drei Radien."""
+        self._mesh("Ellipsoid", geo_ellipsoid(rx, ry, rz, max(3, int(detail_x)), max(2, int(detail_y))))
+
+    @api("3D")
+    def cylinder(self, r, h, detail=24, caps=True):
+        """Zylinder entlang der y-Achse."""
+        self._mesh("Zylinder", geo_cylinder(r, h, max(3, int(detail)), caps=caps))
+
+    @api("3D")
+    def cone(self, r, h, detail=24, cap=True):
+        """Kegel entlang der y-Achse (Spitze oben)."""
+        self._mesh("Kegel", geo_cylinder(r, h, max(3, int(detail)), top_r=0, caps=cap))
+
+    @api("3D")
+    def torus(self, r, tube, detail_x=32, detail_y=16):
+        """Torus (Ring) mit Radius r und Rohrdicke tube."""
+        self._mesh("Torus", geo_torus(r, tube, max(3, int(detail_x)), max(3, int(detail_y))))
+
+    @api("3D")
+    def plane(self, w, h=None, detail_x=1, detail_y=1):
+        """Ebene in der xy-Ebene (beidseitig sichtbar)."""
+        self._mesh("Ebene", geo_plane(w, w if h is None else h, max(1, int(detail_x)), max(1, int(detail_y))))
+
+    @api("3D")
+    def mesh(self, vertices, faces, closed=False):
+        """Eigenes Mesh: vertices = [(x, y, z), …], faces = [(i, j, k, …), …]."""
+        self._mesh("Mesh", ([tuple(map(float, v)) for v in vertices], [list(f) for f in faces], bool(closed)))
+
+    @api("3D")
+    def line3d(self, x1, y1, z1, x2, y2, z2):
+        """Linie im Raum."""
+        self.polyline3d([(x1, y1, z1), (x2, y2, z2)])
+
+    @api("3D")
+    def polyline3d(self, points):
+        """Linienzug durch 3D-Punkte (x, y, z)."""
+        st = self._style
+        if st.stroke is None or st.weight <= 0:
+            return
+        world = [m4_apply(self._m4, tuple(map(float, p))) for p in points]
+        stroke = st.stroke.average() if isinstance(st.stroke, Gradient) else st.stroke
+        self._scene().lines.append((world, stroke, st.weight))
+        self.meshes3d.append({"name": "Linie", "verts": world, "faces": [], "line": True, "color": stroke.rgba})
+
+    @api("3D")
+    def rotate_x(self, angle):
+        """Dreht um die x-Achse."""
+        self._m4 = m4_mul(self._m4, m4_rot_x(angle))
+
+    @api("3D")
+    def rotate_y(self, angle):
+        """Dreht um die y-Achse."""
+        self._m4 = m4_mul(self._m4, m4_rot_y(angle))
+
+    @api("3D")
+    def rotate_z(self, angle):
+        """Dreht um die z-Achse (wie rotate())."""
+        self.rotate(angle)
+
+    @api("3D")
+    def camera(self, ex=None, ey=None, ez=None, tx=None, ty=None, tz=None, dx=0.0, dy=1.0, dz=0.0):
+        """Kamera: Augpunkt (ex, ey, ez), Ziel (tx, ty, tz), „unten“-Richtung (dx, dy, dz). Ohne Werte: Standard."""
+        sc = self._scene()
+        if ex is None:
+            sc.reset_camera()
+            return
+        sc.eye = (float(ex), float(ey), float(ez))
+        sc.target = (float(self.width / 2 if tx is None else tx), float(self.height / 2 if ty is None else ty),
+                     float(0 if tz is None else tz))
+        sc.down = (float(dx), float(dy), float(dz))
+
+    @api("3D")
+    def perspective(self, fov=None, near=1.0):
+        """Perspektivische Projektion (fov = Blickwinkel, Standard PI / 3)."""
+        sc = self._scene()
+        sc.ortho = None
+        sc.fov = math.pi / 3 if fov is None else float(fov)
+        sc.near = float(near)
+
+    @api("3D")
+    def ortho(self, zoom=1.0):
+        """Orthografische Projektion (ohne Fluchtpunkt)."""
+        self._scene().ortho = float(zoom)
+
+    @api("3D")
+    def lights(self):
+        """Standard-Beleuchtung (Umgebungslicht + Licht von vorne)."""
+        sc = self._scene()
+        sc.lights = [("ambient", Color(128, 128, 128), None), ("directional", Color(128, 128, 128), (0.0, 0.0, -1.0))]
+
+    @api("3D")
+    def no_lights(self):
+        """Lichter aus – Flächen in reiner Füllfarbe."""
+        self._scene().lights = []
+
+    @api("3D")
+    def ambient_light(self, *c):
+        """Umgebungslicht (Farbe)."""
+        self._scene().lights.append(("ambient", to_color(c, self._color_mode), None))
+
+    @api("3D")
+    def directional_light(self, *args):
+        """Gerichtetes Licht: directional_light(farbe, dx, dy, dz) oder wie p5 (r, g, b, dx, dy, dz)."""
+        col, (dx, dy, dz) = _light_args(args, self._color_mode)
+        self._scene().lights.append(("directional", col, _unit((dx, dy, dz))))
+
+    @api("3D")
+    def point_light(self, *args):
+        """Punktlicht: point_light(farbe, x, y, z) oder wie p5 (r, g, b, x, y, z)."""
+        col, pos = _light_args(args, self._color_mode)
+        self._scene().lights.append(("point", col, m4_apply(self._m4, pos)))
+
+    @api("3D")
+    def orbit_control(self, sensitivity=1.0, zoom=True):
+        """Kamera mit der Maus drehen (ziehen) und zoomen (Mausrad) – im Studio im Live-Modus."""
+        sc = self._scene()
+        o = self._orbit
+        if o is None:
+            o = self._orbit = {"theta": 0.0, "phi": 0.0, "dist": (self.height / 2) / math.tan(sc.fov / 2)}
+        inp = self.input
+        if inp.get("mouse_is_pressed"):
+            o["theta"] += (inp.get("mouse_x", 0) - inp.get("pmouse_x", 0)) * 0.01 * sensitivity
+            o["phi"] = max(-1.5, min(1.5, o["phi"] + (inp.get("mouse_y", 0) - inp.get("pmouse_y", 0)) * 0.01 * sensitivity))
+        if zoom and inp.get("wheel"):
+            o["dist"] = max(10.0, o["dist"] * (1.0015 ** inp["wheel"]))
+        tx, ty, tz = self.width / 2, self.height / 2, 0.0
+        sc.target = (tx, ty, tz)
+        sc.eye = (tx + o["dist"] * math.sin(o["theta"]) * math.cos(o["phi"]),
+                  ty - o["dist"] * math.sin(o["phi"]),
+                  tz + o["dist"] * math.cos(o["theta"]) * math.cos(o["phi"]))
+        sc.down = (0.0, 1.0, 0.0)
 
     # ------------------------------------------------------------------ shapes
     @api("Formen")
@@ -643,6 +858,7 @@ class Sketch:
         from .export import PillowCanvas, px_per_unit
         from .raster import Img, _pil
         _pil()                                   # friendly error if Pillow is missing
+        self._flush3d()
         scale = scale or px_per_unit(self, dpi=150)
         canvas = PillowCanvas(self.width, self.height, scale)
         canvas.draw(self.items)
@@ -815,6 +1031,22 @@ class Sketch:
 
 
 builtins_max = max
+
+
+def _unit(v):
+    ln = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2) or 1.0
+    return (v[0] / ln, v[1] / ln, v[2] / ln)
+
+
+def _light_args(args, mode):
+    """(colour, (x, y, z)) from either (colour, x, y, z) or p5-style (r, g, b, x, y, z)."""
+    if len(args) == 6 and all(isinstance(a, (int, float)) for a in args):
+        return to_color(args[:3], mode), tuple(float(a) for a in args[3:])
+    if len(args) == 4:
+        return to_color((args[0],), mode), tuple(float(a) for a in args[1:])
+    if len(args) == 3:
+        return Color(255, 255, 255), tuple(float(a) for a in args)
+    raise SketchError("Licht: (farbe, x, y, z) oder (r, g, b, x, y, z) angeben")
 
 
 def keyed_value(keys, frame):

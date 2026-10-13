@@ -160,6 +160,7 @@
     .stage { min-height: 70vh; }
     .side { max-height: none; }
   }
+.check{display:flex;gap:6px;align-items:center;font-size:13px;margin:2px 0 10px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -181,6 +182,7 @@
   <button class="btn" id="expSvg" title="Farb-SVG herunterladen (bei Animationen: aktuelles Bild)">SVG</button>
   <button class="btn" id="expPng" title="PNG in der eingestellten Auflösung">PNG</button>
   <button class="btn" id="expPlot" title="Nur Linien, optimiert, eine Ebene pro Farbe">Plotter</button>
+  <button class="btn" id="exp3d" title="3D-Formen als glTF (.glb) für Blender, TouchDesigner, three.js – Umschalt: OBJ" hidden>3D</button>
   <span class="sep"></span>
   <button class="btn" id="savePy" title="Speichern (Strg/⌘ + S) – Umschalt: Speichern unter">💾</button>
   <button class="btn web-only" id="openPy" title="Skizze (.py) öffnen">📂</button>
@@ -293,6 +295,8 @@
       <select id="pngScale"></select></div>
     <div class="field"><label>Stiftbreite für Plotter (mm)</label>
       <input type="number" id="penWidth" min="0.05" max="3" step="0.05" value="0.45"></div>
+    <label class="check" title="Linien, die von später gezeichneten Flächen verdeckt sind, werden nicht geplottet (3D, überlappende Formen)">
+      <input type="checkbox" id="hiddenLines"> Verdeckte Linien entfernen</label>
     <h2 class="desktop-only">Ordner</h2>
     <p class="empty desktop-only" id="folders"></p>
   </aside>
@@ -465,6 +469,8 @@ async function runNow() {
     if (res.sketch_error) { markErrorLine(res.sketch_error.line); stopAnimation(false); return; }
     buildParams(res.params);
     Object.assign(state, { svg: res.svg, width: res.width, height: res.height, unit: res.unit, animated: res.animated });
+    $("exp3d").hidden = !res.has3d;
+    if (res.has3d && !state.hiddenTouched) $("hiddenLines").checked = true;   // 3D plots need it almost always
     $("sheet").classList.remove("stale");
     updatePngScales();
     if (res.animated) {
@@ -831,10 +837,28 @@ $("expPng").onclick = () => {
 
 $("expPlot").onclick = async () => {
   try {
-    const r = await backend.call("sketch_plotter", { ...sketchPayload(), pen_width: parseFloat($("penWidth").value) || 0.45 });
+    const r = await backend.call("sketch_plotter", { ...sketchPayload(), pen_width: parseFloat($("penWidth").value) || 0.45,
+                                                     hidden_lines: $("hiddenLines").checked });
     if (r.sketch_error) { toast("Fehler in der Skizze"); return; }
     await deliver(new Blob([r.svg], { type: "image/svg+xml" }), fileName("svg").replace(/\.svg$/, "_plotter.svg"));
     toast(`Plotter-SVG: ${r.stats.paths} Pfade, ${fmtNum(r.stats.draw_mm / 1000)} m Linie, ca. ${fmtNum(r.stats.minutes)} min`);
+  } catch (e) { toast("Fehler: " + e.message); }
+};
+
+$("hiddenLines").onchange = () => { state.hiddenTouched = true; };
+$("exp3d").onclick = async (ev) => {
+  const obj = ev.shiftKey;
+  try {
+    const r = await backend.call("sketch_3d", { ...sketchPayload(), format: obj ? "obj" : "glb", name: fileStem() });
+    if (r.sketch_error) { toast("Fehler in der Skizze"); return; }
+    const bin = (b64, type) => new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], { type });
+    if (obj) {
+      await deliver(bin(r.obj_base64, "text/plain"), fileName("obj"));
+      await deliver(bin(r.mtl_base64, "text/plain"), fileStem() + ".mtl");
+    } else {
+      await deliver(bin(r.glb_base64, "model/gltf-binary"), fileName("glb"));
+    }
+    toast(`3D-Export: ${r.meshes} Objekte`);
   } catch (e) { toast("Fehler: " + e.message); }
 };
 
@@ -1302,6 +1326,7 @@ $("serStart").onclick = async () => {
   try {
     job = await backend.call("export_start", { source: getCode(), params: paramsWithKeys(), seed: from, format: "series",
       seeds, formats, scale: parseFloat($("pngScale").value) || 1, pen_width: parseFloat($("penWidth").value) || 0.45,
+      hidden_lines: $("hiddenLines").checked,
       name: fileStem() });
   } catch (e) { $("serResult").className = "vidmsg err"; $("serResult").textContent = e.message; return; }
   $("serJob").hidden = false; $("serStart").disabled = true;

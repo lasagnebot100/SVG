@@ -134,6 +134,30 @@ def _mesh_object(name, buf: MeshBuffer, mats: list, coll):
     return ob
 
 
+def _mesh3d_object(name, shape, mat, coll):
+    """A real 3D object from a sketch's box()/sphere()/mesh()/line3d() (origin at its centre)."""
+    verts = shape["verts"]
+    c = [sum(v[i] for v in verts) / len(verts) for i in range(3)]
+    local = [(x - c[0], y - c[1], z - c[2]) for x, y, z in verts]
+    if shape["line"]:
+        cu = _tag(bpy.data.curves.new(name, "CURVE"))
+        cu.dimensions = "3D"
+        cu.bevel_depth = 0.01
+        cu.bevel_resolution = 2
+        sp = cu.splines.new("POLY")
+        sp.points.add(len(local) - 1)
+        sp.points.foreach_set("co", [v for p in local for v in (*p, 1.0)])
+        data = cu
+    else:
+        data = _tag(bpy.data.meshes.new(name))
+        data.from_pydata(local, [], shape["faces"])
+        data.update()
+    data.materials.append(mat)
+    ob = _new_object(name, data, coll)
+    ob.location = c
+    return ob
+
+
 def _curve_object(name, paths, coll, *, fill=False, radius=None, mat=None, z=0.0):
     """POLY splines. fill=True → 2D filled curve (handles holes); radius → 3D tube."""
     cu = _tag(bpy.data.curves.new(name, "CURVE"))
@@ -269,9 +293,12 @@ def build(desc: dict, opts: Options | None = None, scene=None) -> dict:
 
         tubes: dict = {}
         for s in frame["shapes"]:
-            z = s["order"] * dz
+            z = s.get("z_base", 0.0) + s["order"] * dz
             t = s["type"]
-            if t == "background":
+            if t == "mesh3d":
+                created.append(_mesh3d_object(f"plotart {s['name']} {tag}".strip(), s, mats.get(s["color"]), coll))
+                stats["faces"] += len(s["faces"])
+            elif t == "background":
                 bg = MeshBuffer()
                 v, f = flat_polygon([(-W / 2, -H / 2), (W / 2, -H / 2), (W / 2, H / 2), (-W / 2, H / 2)], z)
                 bg.add(v, f, 0)
@@ -321,7 +348,10 @@ def build(desc: dict, opts: Options | None = None, scene=None) -> dict:
         stats["objects"] += len(created)
 
     if opts.setup_scene:
-        _setup_scene(scene, desc, frames, animated, opts, top=max_order * dz + (opts.relief_height if relief else 0))
+        top3d = max((v[2] for f in frames for s in f["shapes"] if s["type"] == "mesh3d" for v in s["verts"]),
+                    default=0.0)
+        _setup_scene(scene, desc, frames, animated, opts,
+                     top=max(top3d, max_order * dz + (opts.relief_height if relief else 0)))
     return stats
 
 
@@ -378,7 +408,7 @@ def _setup_scene(scene, desc, frames, animated, opts, top):
         cam.location = (ox, oy, oz + top + 5)
         cam.rotation_euler = (0, 0, 0)
         cam.data.clip_start = 0.01
-        cam.data.clip_end = top + 20
+        cam.data.clip_end = top + 20 + max(W, H) * 2
     scene.camera = cam
     if opts.material_mode == "physical" and not any(o.type == "LIGHT" for o in scene.objects):
         sun = _tag(bpy.data.objects.new("plotart Licht", _tag(bpy.data.lights.new("plotart Licht", "SUN"))))

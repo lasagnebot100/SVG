@@ -12,7 +12,7 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 
 from .color import Color, Gradient
-from .core import IDENTITY, Item, Sketch
+from .core import Item, Sketch
 from .render_svg import render_svg
 from .runner import MAX_LOG, SKETCH_FILE, _error_info, _seed_libraries, build_namespace
 
@@ -37,10 +37,11 @@ def trim_frame(items: list[Item]) -> tuple[list[Item], bool]:
 
 
 class Frame:
-    __slots__ = ("index", "items", "clears", "log", "error", "ms")
+    __slots__ = ("index", "items", "clears", "log", "error", "ms", "meshes")
 
-    def __init__(self, index, items, clears, log, error, ms):
+    def __init__(self, index, items, clears, log, error, ms, meshes=None):
         self.index = index
+        self.meshes = meshes or []          # world-space 3D meshes of this frame (glTF/OBJ/Blender)
         self.items = items
         self.clears = clears
         self.log = log
@@ -84,6 +85,10 @@ class Animation:
         self.fps = sk.anim_fps
         self._pending_setup_items = sk.items     # drawn before the first draw()
         sk.items = []
+        sk._flush3d()
+        self._pending_setup_items += sk.items
+        sk.items = []
+        self._pending_setup_meshes = sk.meshes3d
 
     # -------------------------------------------------------------- info
     @property
@@ -111,8 +116,11 @@ class Animation:
         sk, ns, i = self.sk, self.ns, self.frame
         sk.items = self._pending_setup_items
         self._pending_setup_items = []
-        sk._matrix = IDENTITY                 # p5 resets transformations every frame
+        sk.reset_matrix()                     # p5 resets transformations (and lights) every frame
         sk._stack.clear()
+        sk.meshes3d = self._pending_setup_meshes
+        self._pending_setup_meshes = []
+        sk.begin_frame3d()
         sk.apply_keys(i + 1)                  # animated sliders
         ns.update(frame_count=i + 1, t=i / self.total, time=i / self.fps,
                   frames=self.total, fps=self.fps)
@@ -125,15 +133,16 @@ class Animation:
                     self.draw()
                     if sk._shape is not None:
                         sk.end_shape()
+                    sk._flush3d()
             except Exception as exc:
                 err = _error_info(exc)
                 self.error = err
         items, clears = trim_frame(sk.items)
         if i == 0:
             clears = True                     # the first frame always starts on an empty canvas
-        sk.items = []
+        meshes, sk.items = sk.meshes3d, []
         self.frame += 1
-        return Frame(i, items, clears, buf.getvalue()[:MAX_LOG], err, (time.perf_counter() - t0) * 1000)
+        return Frame(i, items, clears, buf.getvalue()[:MAX_LOG], err, (time.perf_counter() - t0) * 1000, meshes)
 
     def skip_to(self, index: int):
         """Advance (without keeping items) until the next produced frame is `index`."""
