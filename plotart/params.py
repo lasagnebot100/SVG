@@ -53,7 +53,8 @@ class Param:
                 val = max(self.min, val)
             if self.max is not None:
                 val = min(self.max, val)
-            return int(round(val)) if self.kind == "int" else val
+            # max()/min() may return the int bound (max(0, 0.0) == 0) – keep floats floats
+            return int(round(val)) if self.kind == "int" else float(val)
         if self.kind == "choice":
             raw = str(raw)
             values = [c[0] for c in self.choices]

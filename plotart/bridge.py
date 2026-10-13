@@ -66,6 +66,23 @@ def sketch_png(req: dict) -> dict:
     return {"png_base64": base64.b64encode(png).decode()}
 
 
+def sketch_thumb(req: dict) -> dict:
+    """Small preview of one seed (for the variants grid): PNG if Pillow is there, else SVG."""
+    from .sketch import render_svg
+    sk, log, err, ms = _execute(req)
+    if err:
+        return {"seed": int(req.get("seed") or 1), "sketch_error": err}
+    size = float(req.get("size") or 260)
+    out = {"seed": sk.seed, "ms": round(ms, 1), "params": req.get("params") or {}}
+    try:
+        from .sketch import render_png
+        out["png_base64"] = base64.b64encode(
+            render_png(sk, scale=size / max(sk.width, sk.height), engine="pillow")).decode()
+    except ImportError:
+        out["svg"] = render_svg(sk)
+    return out
+
+
 def sketch_examples(req: dict) -> dict:
     from .sketch import list_examples
     return {"examples": list_examples()}
@@ -137,16 +154,20 @@ COMMANDS = {
     "sketch_examples": sketch_examples,
     "sketch_reference": sketch_reference,
     "anim_frames": anim_frames,
+    "sketch_thumb": sketch_thumb,
     "export_capabilities": export_capabilities,
 }
 # commands that execute user code (the server runs them in a separate process)
-USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames"}
+USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames", "sketch_thumb"}
 
 
 def dispatch(cmd: str, req: dict) -> dict:
     fn = COMMANDS.get(cmd)
     if fn is None:
         return {"error": f"unbekannter Befehl {cmd!r}"}
+    if "asset_dirs" in req:            # where load_image("foto.jpg") & co. look for files
+        from .sketch import data
+        data.ASSET_DIRS[:] = [str(d) for d in req["asset_dirs"]]
     return fn(req)
 
 

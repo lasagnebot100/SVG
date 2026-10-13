@@ -22,6 +22,9 @@ class ExampleTests(unittest.TestCase):
         for ex in list_examples():
             if "numpy" in ex["source"] and not HAS_NUMPY:
                 continue
+            uses_images = any(f in ex["source"] for f in ("load_image", "create_image", "snapshot(", "filter("))
+            if uses_images and not HAS_PIL:
+                continue
             with self.subTest(example=ex["name"]):
                 r = run_sketch(ex["source"], seed=5)
                 self.assertIsNone(r["error"], r["error"])

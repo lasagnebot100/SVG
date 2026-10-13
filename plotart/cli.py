@@ -74,8 +74,9 @@ def _parse_sets(items: list[str]) -> dict:
 
 def _load_sketch_source(name: str) -> tuple[str, str]:
     """Returns (source, stem) for a file path or an example name/prefix."""
-    from .sketch import list_examples
+    from .sketch import data, list_examples
     if os.path.isfile(name):
+        data.ASSET_DIRS[:] = [os.path.dirname(os.path.abspath(name))]
         with open(name, encoding="utf-8") as f:
             return f.read(), os.path.splitext(os.path.basename(name))[0]
     matches = [e for e in list_examples() if e["name"] == name or e["name"].startswith(name)]
@@ -140,6 +141,22 @@ def _run_sketch_cmd(args) -> int:
     params = _parse_sets(args.param)
     status = 0
     animated_out = args.mp4 or args.webm or args.gif or args.png_seq
+    if args.sheet:
+        from .sketch.series import export_series
+        seeds = list(range(args.seed, args.seed + args.count))
+        formats = (["png"] if args.png else []) + ([] if args.no_svg else ["svg"]) + (["plotter"] if args.plotter else [])
+        out_dir = os.path.join(args.out, f"{stem}_serie_{seeds[0]}-{seeds[-1]}")
+
+        def progress(i, n):
+            if sys.stdout.isatty():
+                print(f"\r  Variante {i}/{n}", end="", flush=True)
+        res = export_series(source, out_dir, seeds, params, formats=formats, scale=args.scale, stem=stem,
+                            pen_width=args.pen, progress=progress)
+        if sys.stdout.isatty():
+            print()
+        print(f"✓ {res['dir']}  –  {res['count']} Varianten" + (f", {res['errors']} mit Fehler" if res["errors"] else "")
+              + (f", Kontaktbogen: {os.path.basename(res['sheet'])}" if res.get("sheet") else ""))
+        return 1 if res["errors"] else 0
     for i in range(args.count):
         seed = args.seed + i
         if args.blend:
@@ -213,6 +230,8 @@ def main(argv=None):
     sk.add_argument("--plotter", action="store_true", help="zusätzlich Plotter-SVG (nur Linien, optimiert)")
     sk.add_argument("--pen", type=float, default=0.45, help="Stiftbreite für --plotter (mm)")
     sk.add_argument("--no-svg", action="store_true", help="kein Farb-SVG schreiben")
+    sk.add_argument("--sheet", action="store_true",
+                    help="Serie: alle Seeds (-s, -n) in einen Ordner mit Kontaktbogen und serie.json")
     anim = sk.add_argument_group("Animation (Skizzen mit draw())")
     anim.add_argument("--mp4", action="store_true", help="als MP4-Video exportieren (braucht ffmpeg)")
     anim.add_argument("--webm", action="store_true", help="als WebM-Video exportieren (braucht ffmpeg)")

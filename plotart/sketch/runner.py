@@ -37,6 +37,10 @@ CONSTANTS = {
     "ROUND": "round", "SQUARE": "square", "PROJECT": "project", "MITER": "miter", "BEVEL": "bevel",
     "OPEN": "open", "CHORD": "chord", "PIE": "pie", "POINTS": "points", "LINES": "lines",
     "RGB": "rgb", "HSB": "hsb", "BOLD": "bold", "ITALIC": "italic", "BOLDITALIC": "bold italic",
+    "BLUR": "blur", "SHARPEN": "sharpen", "EDGES": "edges", "EMBOSS": "emboss", "GRAY": "gray",
+    "INVERT": "invert", "POSTERIZE": "posterize", "THRESHOLD": "threshold", "CONTRAST": "contrast",
+    "BRIGHTNESS": "brightness", "SATURATION": "saturation", "PIXELATE": "pixelate", "GRAIN": "grain",
+    "DITHER": "dither", "SEPIA": "sepia", "LEVELS": "levels",
     **BLEND_MODES,
 }
 CONSTANTS["NORMAL"] = "normal"
@@ -107,6 +111,7 @@ def execute(source: str, params: dict | None = None, seed: int = 1) -> tuple[Ske
     For animated sketches this is the first frame; see animation.Animation for all frames.
     """
     sk = Sketch(seed, params)
+    sk.apply_keys(1)
     ns = build_namespace(sk)
     sk.ns = ns
     _seed_libraries(sk.seed, source)
@@ -139,6 +144,8 @@ def run_sketch(source: str, params: dict | None = None, seed: int = 1) -> dict:
     """Run a sketch and return everything the editor needs (JSON-serialisable)."""
     sk, log, err, ms = execute(source, params, seed)
     meta = {"seed": sk.seed, "params": {p.name: (params or {}).get(p.name, p.default) for p in sk.param_specs}}
+    if sk._param_keys:
+        meta["keyframes"] = sk._param_keys
     return {
         "svg": render_svg(sk, meta) if not err else None,
         "params": [p.to_json() for p in sk.param_specs],

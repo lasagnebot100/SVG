@@ -18,7 +18,8 @@ from .png import to_png
 IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
 CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Transformation",
-              "Text & Bild", "Animation", "Zufall & Noise", "Mathe", "Parameter", "Werkzeuge"]
+              "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Animation", "Zufall & Noise", "Mathe",
+              "Parameter", "Werkzeuge"]
 
 
 def api(category: str):
@@ -100,7 +101,9 @@ class Sketch:
         self._rect_mode = "corner"
         self._ellipse_mode = "center"
         self._shape = None
-        self._param_values = param_values or {}
+        self._param_values = dict(param_values or {})
+        # keyframes per slider: {"Name": [[frame, value], …]} – applied per frame by apply_keys()
+        self._param_keys = self._param_values.pop("__keys__", None) or {}
         self.param_specs: list[Param] = []
         self.ns: dict | None = None          # namespace of the running sketch
         # animation settings (used when the sketch defines draw())
@@ -545,6 +548,118 @@ class Sketch:
             w = h * iw / ih
         self._add("image", {"png": data, "x": x, "y": y, "w": w, "h": h, "smooth": smooth})
 
+    # ------------------------------------------------------------------ images & data
+    @api("Bilder & Daten")
+    def load_image(self, path):
+        """Bild laden (PNG, JPG …) aus dem Skizzen- oder daten/-Ordner, oder "beispiel:kugeln"/"beispiel:portrait"."""
+        from .raster import load_image
+        return load_image(path)
+
+    @api("Bilder & Daten")
+    def load_csv(self, path, delimiter=None, numbers=True):
+        """CSV als Liste von Dicts; Zahlen (auch 12,5) werden umgewandelt. Beispiel: "beispiel:temperaturen.csv"."""
+        from .data import load_csv
+        return load_csv(path, delimiter, numbers)
+
+    @api("Bilder & Daten")
+    def load_json(self, path):
+        """JSON-Datei laden (Beispiel: "beispiel:zufall.json")."""
+        from .data import load_json
+        return load_json(path)
+
+    @api("Bilder & Daten")
+    def load_text(self, path):
+        """Textdatei als String."""
+        from .data import load_text
+        return load_text(path)
+
+    @api("Bilder & Daten")
+    def load_lines(self, path):
+        """Textdatei als Liste von Zeilen."""
+        from .data import load_lines
+        return load_lines(path)
+
+    @api("Bilder & Daten")
+    def load_svg(self, path):
+        """SVG-Datei laden → Formen mit Punktlisten (.shapes, .width, .height)."""
+        from .svgimport import load_svg
+        return load_svg(path)
+
+    @api("Bilder & Daten")
+    def draw_svg(self, svg, x=0, y=0, w=None, h=None, keep_style=True):
+        """Geladene SVG zeichnen (optional auf Breite w / Höhe h skaliert, eigene Farben mit keep_style=False)."""
+        from .svgimport import SvgDrawing, load_svg
+        if not isinstance(svg, SvgDrawing):
+            svg = load_svg(svg)
+        sx = (w / svg.width) if w else (h / svg.height if h else 1.0)
+        sy = (h / svg.height) if h else sx
+        with self.push():
+            self.translate(x, y)
+            self.scale(sx, sy)
+            for shape in svg.shapes:
+                if keep_style:
+                    self._style = replace(self._style, fill=shape.fill, stroke=shape.stroke,
+                                          weight=shape.stroke_width)
+                subs = [[("M", *pts[0])] + [("L", *p) for p in pts[1:]] for pts, _ in shape.paths]
+                self._path(subs, [cl for _, cl in shape.paths], evenodd=len(subs) > 1)
+
+    @api("Bilder & Daten")
+    def text_paths(self, s, x, y, size=None, font=None, align=None):
+        """Text als Liste geschlossener Punktlisten (Buchstaben-Umrisse) – ideal für Plotter und Effekte."""
+        from .fonts import text_paths
+        return text_paths(s, x, y, size or self._style.text_size, self._font_name(font),
+                          align or self._style.text_align)
+
+    @api("Bilder & Daten")
+    def text_shape(self, s, x, y, size=None, font=None, align=None):
+        """Text als echte Form (mit fill/stroke) – erscheint so auch im Plotter-Export und in Blender."""
+        polys = self.text_paths(s, x, y, size, font, align)
+        if polys:
+            subs = [[("M", *p[0])] + [("L", *q) for q in p[1:]] for p in polys]
+            self._path(subs, [True] * len(subs), evenodd=True)
+
+    def _font_name(self, font):
+        if font:
+            return font
+        first = self._style.text_font.split(",")[0].strip().strip('"')
+        from .fonts import find_font
+        from .data import DataError
+        try:
+            find_font(first)
+            return first
+        except DataError:
+            return None
+
+    # ------------------------------------------------------------------ pixels & filters
+    @api("Pixel & Filter")
+    def create_image(self, w, h, *c):
+        """Neues Bild w × h Pixel (für Pixel-Algorithmen; .pixels, .set_pixels, .get, .set)."""
+        from .raster import create_image
+        return create_image(w, h, *c)
+
+    @api("Pixel & Filter")
+    def snapshot(self, scale=None):
+        """Bisher Gezeichnetes als Bild (z. B. für Feedback-Effekte: im nächsten Bild wieder mit image() zeichnen)."""
+        from .export import PillowCanvas, px_per_unit
+        from .raster import Img, _pil
+        _pil()                                   # friendly error if Pillow is missing
+        scale = scale or px_per_unit(self, dpi=150)
+        canvas = PillowCanvas(self.width, self.height, scale)
+        canvas.draw(self.items)
+        return Img(canvas.image())
+
+    @api("Pixel & Filter")
+    def filter(self, kind, amount=None):
+        """Filter auf die ganze Leinwand: BLUR, GRAIN, POSTERIZE, THRESHOLD, INVERT, GRAY, PIXELATE, DITHER, …"""
+        if callable(kind) or kind is None:            # Python's built-in filter(function, iterable)
+            import builtins
+            return builtins.filter(kind, amount)
+        img = self.snapshot().filter(kind, amount, seed=self.rng.randrange(1 << 30))
+        self.items = []
+        data, _, _ = to_png(img)
+        self.items.append(Item("image", {"png": data, "x": 0, "y": 0, "w": self.width, "h": self.height,
+                                         "smooth": True}, self._style, None))
+
     # ------------------------------------------------------------------ animation
     @api("Animation")
     def animation(self, frames=None, fps=None):
@@ -658,6 +773,13 @@ class Sketch:
         self._perlin = Perlin(int(n))
 
     # ------------------------------------------------------------------ parameters
+    def apply_keys(self, frame: int):
+        """Set slider values from their keyframes for image `frame` (1-based), eased between keys."""
+        for name, keys in self._param_keys.items():
+            v = keyed_value(keys, frame)
+            if v is not None:
+                self._param_values[name] = v
+
     @api("Parameter")
     def param(self, name, default, min=None, max=None, step=None, options=None, label=None, help=""):
         """Regler im Studio: n = param("Anzahl", 40, 1, 200). Mit options=[…] wird es eine Auswahl."""
@@ -693,6 +815,24 @@ class Sketch:
 
 
 builtins_max = max
+
+
+def keyed_value(keys, frame):
+    """Value of a keyframed slider at `frame`: smooth (ease in/out) between numeric keys, else stepped."""
+    pts = sorted((float(f), v) for f, v in keys if v is not None)
+    if not pts:
+        return None
+    if frame <= pts[0][0]:
+        return pts[0][1]
+    for (f0, v0), (f1, v1) in zip(pts, pts[1:]):
+        if f0 <= frame <= f1:
+            if not isinstance(v0, (int, float)) or isinstance(v0, bool) or not isinstance(v1, (int, float)):
+                return v0 if frame < f1 else v1
+            t = (frame - f0) / (f1 - f0) if f1 > f0 else 1.0
+            t = t * t * (3 - 2 * t)
+            v = v0 + (v1 - v0) * t
+            return round(v) if isinstance(v0, int) and isinstance(v1, int) else v
+    return pts[-1][1]
 
 
 def _num(v: float):

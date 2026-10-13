@@ -44,6 +44,10 @@ self.onmessage = async (e) => {
           messageCallback: (msg) => self.postMessage({ progress: msg }),
           errorCallback: (msg) => self.postMessage({ progress: msg }),
         });
+        // plotart's image functions use Pillow internally (not visible as an import in the sketch)
+        if (/load_image|create_image|snapshot\(|filter\(|load_svg|draw_svg|text_paths|text_shape/.test(source)) {
+          await py.loadPackage("pillow", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
+        }
       }
       py.globals.set("_cmd", arg.cmd);
       py.globals.set("_arg", arg.body);

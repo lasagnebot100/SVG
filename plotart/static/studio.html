@@ -96,6 +96,35 @@
   .vidmsg { font-size: 12px; color: var(--muted); }
   .vidmsg a { color: var(--accent); font-weight: 600; }
   .vidmsg.err { color: var(--err); }
+  /* variants overlay */
+  .overlay { position: fixed; inset: 0; background: rgba(236,235,231,.97); z-index: 25; display: none; flex-direction: column; }
+  .overlay.on { display: flex; }
+  .overlay header { position: sticky; top: 0; }
+  .vgrid { flex: 1; overflow-y: auto; padding: 18px; display: grid; gap: 14px;
+           grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-content: start; }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px; cursor: pointer; position: relative; }
+  .tile:hover { border-color: var(--accent); box-shadow: 0 4px 18px rgba(0,0,0,.08); }
+  .tile .img { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: var(--paper); border-radius: 6px; overflow: hidden; }
+  .tile img, .tile .img svg { max-width: 100%; max-height: 100%; display: block; }
+  .tile .meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .tile .meta .btn { padding: 2px 8px; font-size: 12px; }
+  .tile.err .img { color: var(--err); font-size: 12px; padding: 10px; text-align: center; }
+  .favs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .fav { position: relative; cursor: pointer; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+  .fav:hover { border-color: var(--accent); }
+  .fav img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; }
+  .fav span { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10.5px; background: rgba(255,255,255,.85); padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fav b { position: absolute; top: 2px; right: 4px; font-size: 12px; color: var(--muted); display: none; }
+  .fav:hover b { display: block; }
+  .assets { font-size: 12.5px; }
+  .asset { display: flex; justify-content: space-between; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+  .asset:hover { background: var(--accent-soft); }
+  .asset small { color: var(--muted); }
+  .stage.drop { outline: 3px dashed var(--accent); outline-offset: -10px; }
+  .keybtn { border: 1px solid var(--line); background: #fff; border-radius: 5px; font-size: 11px; padding: 0 5px; cursor: pointer; color: var(--muted); }
+  .keybtn.on { color: #c75a00; border-color: #c75a00; }
+  .keys { font-size: 11px; color: #c75a00; margin-top: 2px; }
+  .keys button { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 11px; }
   /* help drawer */
   .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--panel); z-index: 20;
             box-shadow: -10px 0 40px rgba(0,0,0,.15); transform: translateX(105%); transition: transform .2s; display: flex; flex-direction: column; }
@@ -145,6 +174,9 @@
   <span class="sep"></span>
   <input type="number" id="seed" min="1" step="1" title="Seed – gleicher Seed = gleiches Bild">
   <button class="btn" id="dice" title="Neuer Seed (Strg/⌘ + Umschalt + Enter)">🎲</button>
+  <button class="btn" id="variants" title="Varianten-Raster: viele Seeds auf einen Blick (V)">🔲 Varianten</button>
+  <button class="btn" id="favBtn" title="Aktuelle Variante als Favorit merken (F)">★</button>
+  <select id="history" class="desktop-only" title="Frühere gespeicherte Fassungen" hidden><option value="">🕘 Verlauf</option></select>
   <span class="grow"></span>
   <button class="btn" id="expSvg" title="Farb-SVG herunterladen (bei Animationen: aktuelles Bild)">SVG</button>
   <button class="btn" id="expPng" title="PNG in der eingestellten Auflösung">PNG</button>
@@ -182,6 +214,10 @@
     <div id="params"><p class="empty">Regler entstehen automatisch aus deiner Skizze, z. B.<br>
       <code>n = param("Anzahl", 40, 1, 200)</code></p></div>
 
+    <h2>Favoriten <span class="vidmsg" id="favCount"></span></h2>
+    <div class="favs" id="favs"></div>
+    <p class="empty" id="favEmpty">Mit ★ merkst du dir Seed und Regler einer Variante.</p>
+
     <div id="vidSection" hidden>
       <h2>Animation exportieren</h2>
       <div class="vidbox desktop-only">
@@ -201,6 +237,31 @@
         <div class="vidmsg" id="vidResult"></div>
       </div>
       <p class="empty web-only">Video-, GIF- und PNG-Sequenz-Export gibt es in der Desktop-Version: <code>python3 -m plotart</code></p>
+    </div>
+
+    <div class="desktop-only">
+      <h2>Serie exportieren</h2>
+      <div class="vidbox">
+        <div class="row2">
+          <div class="field"><label>Ab Seed</label><input type="number" id="serFrom" min="1" value="1"></div>
+          <div class="field"><label>Anzahl</label><input type="number" id="serCount" min="1" max="1000" value="12"></div>
+        </div>
+        <div class="field" style="font-size:12.5px">
+          <label style="justify-content:flex-start;gap:12px"><span><input type="checkbox" id="serPng" checked> PNG</span>
+            <span><input type="checkbox" id="serSvg"> SVG</span><span><input type="checkbox" id="serPlot"> Plotter</span></label>
+          <div class="help">PNG in der Auflösung von „Export“ unten · mit Kontaktbogen</div>
+        </div>
+        <button class="btn primary" id="serStart" style="width:100%;justify-content:center">🗂 Serie exportieren</button>
+        <div id="serJob" hidden><div class="progress"><i id="serBar"></i></div><div class="vidmsg" id="serMsg"></div></div>
+        <div class="vidmsg" id="serResult"></div>
+      </div>
+
+      <h2>Daten <span><button class="btn" id="assetUp" title="Bilder, CSV, JSON, SVG, Schriften hochladen">＋ Datei</button></span></h2>
+      <input type="file" id="assetIn" multiple hidden accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,.csv,.json,.txt,.svg,.ttf,.ttc,.otf">
+      <div class="assets" id="assets"></div>
+      <p class="empty" id="assetHint">Dateien hierher ziehen oder „＋ Datei“. Ein Klick fügt den passenden Befehl
+        (z. B. <code>load_image("foto.jpg")</code>) in den Code ein. Eingebaut: <code>"beispiel:kugeln"</code>,
+        <code>"beispiel:portrait"</code>, <code>"beispiel:temperaturen.csv"</code>.</p>
     </div>
 
     <div class="desktop-only">
@@ -236,6 +297,16 @@
     <p class="empty desktop-only" id="folders"></p>
   </aside>
 </main>
+<div class="overlay" id="vOverlay">
+  <header>
+    <b style="flex:1">Varianten</b>
+    <label style="font-size:13px"><input type="checkbox" id="vParams"> Regler auch würfeln</label>
+    <select id="vCount"><option value="9">9</option><option value="16" selected>16</option><option value="25">25</option></select>
+    <button class="btn primary" id="vRoll">🎲 Neu würfeln</button>
+    <button class="btn" id="vClose">✕ Schließen</button>
+  </header>
+  <div class="vgrid" id="vGrid"></div>
+</div>
 <div class="drawer" id="drawer">
   <header><b style="flex:1">Funktionen</b><input type="search" id="refSearch" placeholder="Suchen …" style="width:55%">
     <button class="btn" id="closeHelp">✕</button></header>
@@ -271,13 +342,13 @@ document.body.classList.toggle("standalone", !DESKTOP);
 const STORE = "plotart-studio-v1";
 const state = { seed: 1, params: {}, specs: [], live: true, svg: "", width: 800, height: 800, unit: "px",
                 req: 0, reference: [], examples: [], errorLine: null, animated: false,
-                file: null, fileMtime: 0, savedSource: null };
+                file: null, fileMtime: 0, savedSource: null, keys: {}, favorites: [] };
 
 function load() { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } }
 function persist() {
   try {
     localStorage.setItem(STORE, JSON.stringify({ source: getCode(), seed: state.seed, params: state.params,
-      live: state.live, file: state.file }));
+      live: state.live, file: state.file, keys: state.keys }));
   } catch (e) {}
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -374,7 +445,11 @@ $("cancel").onclick = () => {
   $("console").innerHTML = '<span class="err">Abgebrochen. Python wird neu gestartet …</span>';
 };
 
-function sketchPayload() { return { source: getCode(), params: state.params, seed: state.seed }; }
+function paramsWithKeys(params = state.params) {
+  const keys = Object.fromEntries(Object.entries(state.keys).filter(([, v]) => v.length));
+  return Object.keys(keys).length ? { ...params, __keys__: keys } : params;
+}
+function sketchPayload() { return { source: getCode(), params: paramsWithKeys(), seed: state.seed }; }
 
 async function runNow() {
   const id = ++state.req;
@@ -467,6 +542,7 @@ function startAnimation(res) {
   anim.checkpoints.clear();
   $("svgView").hidden = true; $("animView").hidden = false;
   $("timeline").classList.add("on");
+  document.querySelectorAll(".keybtn").forEach(b => b.hidden = false);
   $("vidSection").hidden = false;
   $("tlScrub").max = res.frames - 1;
   $("vidFrames").value = res.frames; $("vidFps").value = Math.round(res.fps);
@@ -483,6 +559,7 @@ function stopAnimation(hide) {
     $("svgView").hidden = false; $("animView").hidden = true;
     $("timeline").classList.remove("on");
     $("vidSection").hidden = true;
+    document.querySelectorAll(".keybtn").forEach(b => b.hidden = true);
   }
 }
 
@@ -632,7 +709,13 @@ function buildParams(specs) {
     const v = label.querySelector(".v");
     wrap.appendChild(label);
     let input;
-    const set = (val) => { state.params[p.name] = val; persist(); run(120); };
+    const set = (val) => {
+      state.params[p.name] = val;
+      // editing a slider on a frame that has a keyframe updates that keyframe
+      const ks = state.keys[p.name];
+      if (state.animated && ks) { const k = ks.find(x => x[0] === anim.cur + 1); if (k) { k[1] = val; renderKeys(p.name); } }
+      persist(); run(120);
+    };
     if (p.kind === "choice") {
       input = document.createElement("select");
       for (const [val, lab] of p.choices) { const o = new Option(lab, val); input.add(o); }
@@ -649,12 +732,20 @@ function buildParams(specs) {
       v.textContent = fmtVal(p, value);
       input.oninput = () => { const x = p.kind === "int" ? parseInt(input.value) : parseFloat(input.value);
         v.textContent = fmtVal(p, x); set(x); };
+      // ◆ keyframe button (animations): slider value at the current frame
+      const kb = document.createElement("button");
+      kb.className = "keybtn"; kb.textContent = "◆"; kb.title = "Keyframe im aktuellen Bild setzen (der Regler wird animiert, wenn er in draw() abgefragt wird)";
+      kb.dataset.keyfor = p.name; kb.hidden = !state.animated;
+      kb.onclick = (e) => { e.preventDefault(); addKey(p.name, p.kind === "int" ? parseInt(input.value) : parseFloat(input.value)); };
+      v.after(kb);
+      wrap.dataset.param = p.name;
     } else {
       input = document.createElement("input"); input.type = "text"; input.value = value; input.onchange = () => set(input.value);
     }
     if (input) wrap.appendChild(input);
     if (p.help) { const h = document.createElement("div"); h.className = "help"; h.textContent = p.help; wrap.appendChild(h); }
     box.appendChild(wrap);
+    if (p.kind === "int" || p.kind === "float") renderKeys(p.name);
   }
 }
 
@@ -898,8 +989,9 @@ async function openFile(name) {
   try {
     const r = await backend.call("sketch_file_load", { name });
     state.file = r.name; state.fileMtime = r.mtime; state.savedSource = r.source;
-    state.params = {}; state.specSig = null;
+    state.params = {}; state.specSig = null; state.keys = {};
     setCode(r.source); updateFileLabel(); persist(); run(0);
+    loadFavorites(); refreshHistory();
   } catch (e) { toast(e.message); }
 }
 
@@ -920,7 +1012,9 @@ async function save(saveAs) {
     if (name !== state.file && files.includes(name) && !confirm(`${name} existiert bereits. Überschreiben?`)) return;
     const r = await backend.call("sketch_file_save", { name, source, overwrite: true });
     state.file = r.name; state.fileMtime = r.mtime; state.savedSource = source;
-    updateFileLabel(); persist(); refreshFiles();
+    const firstSave = !state.favoritesFile && state.favorites.length && !files.includes(name);
+    updateFileLabel(); persist(); refreshFiles(); refreshHistory();
+    if (firstSave) storeFavorites();          // favourites of an unsaved sketch move into the file's data
     toast("Gespeichert: " + r.name);
   } catch (e) { toast("Speichern fehlgeschlagen: " + e.message); }
 }
@@ -930,8 +1024,8 @@ $("files").onchange = () => {
   if (v.startsWith("open:")) openFile(v.slice(5));
   else if (v.startsWith("new:")) {
     if (!confirmDiscard()) return;
-    state.file = null; state.savedSource = null; state.params = {}; state.specSig = null;
-    setCode(TEMPLATES[v.slice(4)]); updateFileLabel(); persist(); run(0);
+    state.file = null; state.savedSource = null; state.params = {}; state.specSig = null; state.keys = {};
+    setCode(TEMPLATES[v.slice(4)]); updateFileLabel(); persist(); run(0); loadFavorites(); refreshHistory();
   } else if (v === "saveas") save(true);
 };
 
@@ -983,9 +1077,9 @@ $("examples").onchange = () => {
   const ex = state.examples.find(e => e.name === $("examples").value);
   $("examples").value = "";
   if (!ex || !confirmDiscard()) return;
-  state.params = {}; state.specSig = null;
+  state.params = {}; state.specSig = null; state.keys = {};
   state.file = null; state.savedSource = null; updateFileLabel();
-  setCode(ex.source); persist(); run(0);
+  setCode(ex.source); persist(); run(0); loadFavorites(); refreshHistory();
 };
 document.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
@@ -995,7 +1089,9 @@ document.addEventListener("keydown", (e) => {
   else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(e.shiftKey); }
   else if (mod && e.key.toLowerCase() === "o" && DESKTOP) { e.preventDefault(); $("files").focus(); $("files").showPicker?.(); }
   else if (e.key === "F1") { e.preventDefault(); $("help").click(); }
-  else if (e.key === "Escape") $("drawer").classList.remove("on");
+  else if (e.key === "Escape") { $("drawer").classList.remove("on"); if ($("vOverlay").classList.contains("on")) $("vClose").click(); }
+  else if (!typing && e.key.toLowerCase() === "v" && !mod) { e.preventDefault(); $("variants").click(); }
+  else if (!typing && e.key.toLowerCase() === "f" && !mod) { e.preventDefault(); saveFavorite(null); }
   else if (!typing && state.animated) {
     if (e.code === "Space") { e.preventDefault(); setPlaying(!anim.playing); }
     else if (e.key === "ArrowRight") { e.preventDefault(); $("tlStep").click(); }
@@ -1028,12 +1124,255 @@ $("help").onclick = () => { $("drawer").classList.add("on"); $("refSearch").focu
 $("closeHelp").onclick = () => $("drawer").classList.remove("on");
 $("refSearch").oninput = () => buildReference($("refSearch").value);
 
+// ================================================================== keyframes (stage 6)
+function addKey(name, value) {
+  const frame = Math.max(1, anim.cur + 1);
+  const ks = state.keys[name] || (state.keys[name] = []);
+  const k = ks.find(x => x[0] === frame);
+  if (k) k[1] = value; else ks.push([frame, value]);
+  ks.sort((a, b) => a[0] - b[0]);
+  renderKeys(name); persist(); run(0);
+  toast(`Keyframe: „${name}“ = ${value} in Bild ${frame}`);
+}
+function renderKeys(name) {
+  const wrap = document.querySelector(`#params .field[data-param="${CSS.escape(name)}"]`);
+  if (!wrap) return;
+  wrap.querySelector(".keys")?.remove();
+  const ks = state.keys[name] || [];
+  wrap.querySelector(".keybtn")?.classList.toggle("on", ks.length > 0);
+  if (!ks.length) return;
+  const d = document.createElement("div"); d.className = "keys";
+  d.innerHTML = ks.map(k => `◆ ${k[0]}: ${esc(k[1])}`).join(" · ") + ' <button title="Keyframes entfernen">✕</button>';
+  d.querySelector("button").onclick = () => { delete state.keys[name]; renderKeys(name); persist(); run(0); };
+  wrap.appendChild(d);
+}
+
+// ================================================================== variants grid (stage 6)
+let vGen = 0;
+function thumbHtml(r) {
+  if (r.png_base64) return `<img src="data:image/png;base64,${r.png_base64}" alt="">`;
+  if (r.svg) return r.svg.replace(/^<\?xml[^>]*>\s*/, "");
+  return "";
+}
+async function rollVariants() {
+  const gen = ++vGen, grid = $("vGrid"), n = parseInt($("vCount").value) || 16;
+  const withParams = $("vParams").checked;
+  grid.innerHTML = "";
+  const source = getCode();
+  for (let i = 0; i < n; i++) {
+    const seed = Math.floor(Math.random() * 999999) + 1;
+    let params = { ...state.params };
+    if (withParams) for (const p of state.specs) params[p.name] = randomParamValue(p);
+    const tile = document.createElement("div");
+    tile.className = "tile";
+    tile.innerHTML = `<div class="img"><span class="vidmsg">…</span></div><div class="meta"><span>Seed ${seed}</span>` +
+      `<span><button class="btn" title="Als Favorit merken">★</button></span></div>`;
+    grid.appendChild(tile);
+    tile.onclick = (e) => {
+      if (e.target.closest("button")) return;
+      state.seed = seed; state.params = params; state.specSig = null;
+      $("vOverlay").classList.remove("on"); run(0);
+    };
+    tile.querySelector("button").onclick = () => saveFavorite({ seed, params, thumb: tile.querySelector("img")?.src });
+    tile._job = { seed, params };
+  }
+  // render one after another so the first ones appear quickly
+  for (const tile of grid.children) {
+    if (gen !== vGen) return;
+    const { seed, params } = tile._job;
+    try {
+      const r = await backend.call("sketch_thumb", { source, params: paramsWithKeys(params), seed, size: 300 });
+      if (gen !== vGen) return;
+      if (r.sketch_error) { tile.classList.add("err"); tile.querySelector(".img").textContent = r.sketch_error.message; }
+      else tile.querySelector(".img").innerHTML = thumbHtml(r);
+    } catch (e) {
+      if (gen !== vGen) return;
+      tile.classList.add("err"); tile.querySelector(".img").textContent = e.message;
+    }
+  }
+}
+$("variants").onclick = () => { $("vOverlay").classList.add("on"); rollVariants(); };
+$("vRoll").onclick = rollVariants;
+$("vClose").onclick = () => { vGen++; $("vOverlay").classList.remove("on"); };
+
+// ================================================================== favourites (stage 6)
+function favKey() { return "plotart-fav:" + (state.file || fileStem()); }
+async function loadFavorites() {
+  state.favorites = [];
+  if (DESKTOP && state.file) {
+    try { state.favorites = (await backend.call("favorites_load", { name: state.file })).favorites || []; } catch (e) {}
+  } else {
+    try { state.favorites = JSON.parse(localStorage.getItem(favKey())) || []; } catch (e) {}
+  }
+  renderFavorites();
+}
+async function storeFavorites() {
+  if (DESKTOP && state.file) {
+    try { await backend.call("favorites_save", { name: state.file, favorites: state.favorites }); }
+    catch (e) { toast("Favoriten nicht gespeichert: " + e.message); }
+  } else {
+    try { localStorage.setItem(favKey(), JSON.stringify(state.favorites)); }
+    catch (e) { toast("Favoriten-Speicher voll"); }
+  }
+}
+function renderFavorites() {
+  const box = $("favs"); box.innerHTML = "";
+  $("favEmpty").hidden = state.favorites.length > 0;
+  $("favCount").textContent = state.favorites.length ? `${state.favorites.length}` : "";
+  state.favorites.forEach((f, i) => {
+    const d = document.createElement("div"); d.className = "fav";
+    d.title = `Seed ${f.seed}${f.note ? " – " + f.note : ""}\n${new Date(f.created).toLocaleString("de-AT")}`;
+    d.innerHTML = `${f.thumb ? `<img src="${esc(f.thumb)}" alt="">` : '<img alt="">'}<span>${f.note ? esc(f.note) : "Seed " + f.seed}</span><b title="Entfernen">✕</b>`;
+    d.onclick = (e) => {
+      if (e.target.tagName === "B") {
+        if (confirm("Favorit entfernen?")) { state.favorites.splice(i, 1); storeFavorites(); renderFavorites(); }
+        return;
+      }
+      state.seed = f.seed; state.params = { ...f.params }; state.keys = JSON.parse(JSON.stringify(f.keys || {}));
+      state.specSig = null; persist(); run(0); toast("Favorit geladen: Seed " + f.seed);
+    };
+    box.appendChild(d);
+  });
+}
+function currentThumb(size = 160) {
+  return new Promise((resolve) => {
+    if (state.animated) {
+      const c = document.createElement("canvas"); const s = size / Math.max(canvas.width, canvas.height);
+      c.width = Math.round(canvas.width * s); c.height = Math.round(canvas.height * s);
+      c.getContext("2d").drawImage(canvas, 0, 0, c.width, c.height);
+      return resolve(c.toDataURL("image/jpeg", 0.85));
+    }
+    if (!state.svg) return resolve(null);
+    const s = size / Math.max(state.width, state.height), w = Math.round(state.width * s), h = Math.round(state.height * s);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const g = c.getContext("2d"); g.fillStyle = "#fbfaf7"; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => resolve(null);
+    const svg = state.svg.replace(/<svg([^>]*?)width="[^"]*"([^>]*?)height="[^"]*"/, `<svg$1width="${w}"$2height="${h}"`);
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  });
+}
+async function saveFavorite(fav) {
+  const note = fav ? "" : (prompt("Notiz zum Favoriten (optional):", "") ?? null);
+  if (note === null) return;
+  const f = fav || { seed: state.seed, params: { ...state.params } };
+  f.keys = fav ? {} : JSON.parse(JSON.stringify(state.keys));
+  f.note = note; f.created = Date.now();
+  if (!f.thumb) f.thumb = await currentThumb();
+  state.favorites.unshift(f);
+  await storeFavorites(); renderFavorites();
+  toast(`★ Favorit gespeichert (Seed ${f.seed})` + (DESKTOP && !state.file ? " – Skizze speichern, damit Favoriten mit der Datei mitwandern" : ""));
+}
+$("favBtn").onclick = () => saveFavorite(null);
+
+// ================================================================== history (stage 6)
+async function refreshHistory() {
+  const sel = $("history");
+  sel.hidden = !(DESKTOP && state.file);
+  if (sel.hidden) return;
+  try {
+    const r = await backend.call("sketch_history", { name: state.file });
+    sel.innerHTML = "";
+    sel.add(new Option(r.versions.length ? `🕘 Verlauf (${r.versions.length})` : "🕘 Verlauf (leer)", ""));
+    for (const v of r.versions) sel.add(new Option(v.time, v.version));
+  } catch (e) {}
+}
+$("history").onchange = async () => {
+  const v = $("history").value; $("history").value = "";
+  if (!v) return;
+  if (isDirty() && !confirm("Ungespeicherte Änderungen verwerfen und die Version vom " + $("history").selectedOptions[0]?.text + " laden?")) return;
+  try {
+    const r = await backend.call("sketch_history_load", { name: state.file, version: v });
+    setCode(r.source); updateFileLabel(); persist(); run(0);
+    toast("Ältere Fassung geladen – mit 💾 speichern, um sie wiederherzustellen");
+  } catch (e) { toast(e.message); }
+};
+
+// ================================================================== series export (stage 6)
+$("serStart").onclick = async () => {
+  const from = parseInt($("serFrom").value) || 1, count = Math.max(1, Math.min(1000, parseInt($("serCount").value) || 12));
+  const formats = [["png", $("serPng")], ["svg", $("serSvg")], ["plotter", $("serPlot")]].filter(([, c]) => c.checked).map(([f]) => f);
+  if (!formats.length) { toast("Mindestens ein Format wählen"); return; }
+  const seeds = Array.from({ length: count }, (_, i) => from + i);
+  $("serResult").innerHTML = ""; $("serResult").className = "vidmsg";
+  let job;
+  try {
+    job = await backend.call("export_start", { source: getCode(), params: paramsWithKeys(), seed: from, format: "series",
+      seeds, formats, scale: parseFloat($("pngScale").value) || 1, pen_width: parseFloat($("penWidth").value) || 0.45,
+      name: fileStem() });
+  } catch (e) { $("serResult").className = "vidmsg err"; $("serResult").textContent = e.message; return; }
+  $("serJob").hidden = false; $("serStart").disabled = true;
+  let st = job;
+  while (st.state === "running") {
+    await new Promise(r => setTimeout(r, 400));
+    try { st = await backend.call("export_status", { id: job.id }); } catch (e) { st = { state: "error", error: e.message }; }
+    $("serBar").style.width = (st.total ? 100 * st.progress / st.total : 0) + "%";
+    $("serMsg").textContent = `Variante ${st.progress || 0} / ${st.total || count}`;
+  }
+  $("serJob").hidden = true; $("serStart").disabled = false;
+  if (st.state === "done") {
+    $("serResult").innerHTML = `✓ ${count} Varianten in ${fmtNum(st.seconds)} s · ${fileLink(st)} (mit Kontaktbogen, auch im Ordner output/)`;
+    $("serResult").querySelector("a").click();
+  } else { $("serResult").className = "vidmsg err"; $("serResult").textContent = st.error || "Fehlgeschlagen"; }
+};
+
+// ================================================================== data files (stage 4)
+const ASSET_SNIPPETS = { png: "load_image", jpg: "load_image", jpeg: "load_image", gif: "load_image", webp: "load_image",
+  bmp: "load_image", tif: "load_image", tiff: "load_image", csv: "load_csv", json: "load_json", txt: "load_text",
+  svg: "load_svg" };
+async function refreshAssets() {
+  if (!DESKTOP) return;
+  let r;
+  try { r = await backend.call("asset_list", {}); } catch (e) { return; }
+  const box = $("assets"); box.innerHTML = "";
+  for (const f of r.files) {
+    const d = document.createElement("div"); d.className = "asset";
+    d.innerHTML = `<span>${esc(f.name)}</span><small>${fmtBytes(f.size)}</small>`;
+    d.title = "Klick: Befehl in den Code einfügen";
+    d.onclick = () => {
+      const ext = f.name.split(".").pop().toLowerCase();
+      const snippet = ASSET_SNIPPETS[ext] ? `${ASSET_SNIPPETS[ext]}("${f.name}")` : `"${f.name}"`;
+      if (cm) { cm.replaceSelection(snippet); cm.focus(); } else toast(snippet);
+    };
+    box.appendChild(d);
+  }
+}
+async function uploadAssets(files) {
+  for (const file of files) {
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(file);
+    });
+    try { await backend.call("asset_put", { name: file.name, data: b64 }); toast("Hochgeladen: daten/" + file.name); }
+    catch (e) { toast(file.name + ": " + e.message); }
+  }
+  refreshAssets(); run(0);
+}
+$("assetUp").onclick = () => $("assetIn").click();
+$("assetIn").onchange = () => { uploadAssets([...$("assetIn").files]); $("assetIn").value = ""; };
+if (DESKTOP) {
+  const stage = $("stage");
+  stage.addEventListener("dragover", (e) => { e.preventDefault(); stage.classList.add("drop"); });
+  stage.addEventListener("dragleave", () => stage.classList.remove("drop"));
+  stage.addEventListener("drop", (e) => {
+    e.preventDefault(); stage.classList.remove("drop");
+    const files = [...e.dataTransfer.files];
+    if (files.length === 1 && files[0].name.endsWith(".py")) {          // a sketch → open it
+      files[0].text().then(t => { if (confirmDiscard()) { setCode(t); state.file = null; state.savedSource = null; updateFileLabel(); run(0); } });
+    } else if (files.length) uploadAssets(files);
+  });
+}
+
 // ================================================================== start
 (async function init() {
   initEditor();
   const saved = load();
   state.seed = saved.seed || 1;
   state.params = saved.params || {};
+  state.keys = saved.keys || {};
   state.live = saved.live !== false;
   $("live").classList.toggle("on", state.live);
   $("seed").value = state.seed;
@@ -1069,6 +1408,8 @@ $("refSearch").oninput = () => buildReference($("refSearch").value);
   setCode(src);
   updateFileLabel();
   run(0);
+  loadFavorites();
+  if (DESKTOP) { refreshAssets(); refreshHistory(); }
 })();
 </script>
 </body>

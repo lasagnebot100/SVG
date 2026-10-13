@@ -113,9 +113,11 @@ class PillowCanvas:
         if it.kind == "image":
             d = it.data
             pic = Image.open(io.BytesIO(d["png"])).convert("RGBA")
+            if abs(m[1]) > 1e-9 or abs(m[2]) > 1e-9 or m[0] < 0 or m[3] < 0:
+                self._draw_image_affine(target, pic, d, m, ox, oy)   # rotated / sheared / mirrored
+                return
             x, y = mat_apply(m, d["x"], d["y"])
-            ms = _scale_of(m)
-            w, h = max(1, round(d["w"] * ms * self.S)), max(1, round(d["h"] * ms * self.S))
+            w, h = max(1, round(d["w"] * m[0] * self.S)), max(1, round(d["h"] * m[3] * self.S))
             pic = pic.resize((w, h), Image.LANCZOS if d["smooth"] else Image.NEAREST)
             _paste_clipped(target, pic, round(x * self.S) - ox, round(y * self.S) - oy)
             return
@@ -176,6 +178,26 @@ class PillowCanvas:
                     r = width / 2
                     for px, py in (line[0], line[-1]):
                         draw.ellipse((px - r, py - r, px + r, py + r), fill=col)
+
+    def _draw_image_affine(self, target, pic, d, m, ox, oy):
+        """Full affine image drawing: image pixels → sketch units → matrix → device pixels."""
+        from PIL import Image
+        from .core import mat_mul
+        iw, ih = pic.size
+        place = (d["w"] / iw, 0, 0, d["h"] / ih, d["x"], d["y"])
+        T = mat_mul((self.S, 0, 0, self.S, -ox, -oy), mat_mul(m, place))
+        corners = [mat_apply(T, u, v) for u, v in ((0, 0), (iw, 0), (iw, ih), (0, ih))]
+        box = _bbox_of(corners, 1, target.size)
+        if box is None:
+            return
+        a, b, c, dd, e, f = mat_mul((1, 0, 0, 1, -box[0], -box[1]), T)
+        det = a * dd - b * c
+        if abs(det) < 1e-12:
+            return
+        inv = (dd / det, -c / det, (c * f - dd * e) / det, -b / det, a / det, (b * e - a * f) / det)
+        out = pic.transform((box[2] - box[0], box[3] - box[1]), Image.AFFINE, inv,
+                            resample=Image.BICUBIC if d["smooth"] else Image.NEAREST, fillcolor=(0, 0, 0, 0))
+        target.alpha_composite(out, box[:2])
 
     def draw(self, items):
         from PIL import Image

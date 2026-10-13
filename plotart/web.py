@@ -28,7 +28,10 @@ PAGES = {"/": "studio.html", "/index.html": "studio.html", "/studio": "studio.ht
 FILES = {"/vendor/codemirror.js": ("vendor/codemirror.js", "text/javascript; charset=utf-8"),
          "/vendor/codemirror.css": ("vendor/codemirror.css", "text/css; charset=utf-8")}
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
-EXTENSIONS = {"mp4": "mp4", "webm": "webm", "gif": "gif", "png": "zip", "blend": "blend"}
+EXTENSIONS = {"mp4": "mp4", "webm": "webm", "gif": "gif", "png": "zip", "blend": "blend", "series": "zip"}
+ASSET_TYPES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".csv", ".json", ".txt",
+               ".svg", ".ttf", ".ttc", ".otf"}
+MAX_ASSET_BYTES = 50 * 1024 * 1024
 MIME = {".mp4": "video/mp4", ".webm": "video/webm", ".gif": "image/gif", ".zip": "application/zip",
         ".svg": "image/svg+xml", ".png": "image/png", ".blend": "application/x-blender"}
 
@@ -36,7 +39,9 @@ MIME = {".mp4": "video/mp4", ".webm": "video/webm", ".gif": "image/gif", ".zip":
 # ------------------------------------------------------------------------- export jobs
 def _export_entry(q, req):
     """Runs in a separate process: render the animation, report progress via the queue."""
+    from .sketch import data
     from .sketch.video import ExportError, export_animation
+    data.ASSET_DIRS[:] = req.get("asset_dirs") or []
     last = [0.0]
 
     def progress(i, n):
@@ -45,6 +50,16 @@ def _export_entry(q, req):
             last[0] = now
             q.put(("progress", i, n))
     try:
+        if req["format"] == "series":
+            from .sketch.series import export_series
+            out_dir = Path(req["out_path"]).with_suffix("")
+            res = export_series(req["source"], out_dir, req["seeds"], req.get("params"),
+                                formats=req.get("formats") or ["png"], scale=req.get("scale"),
+                                pen_width=float(req.get("pen_width") or 0.45), stem=req.get("stem") or "skizze",
+                                progress=progress, zip_path=req["out_path"])
+            res = {**res, "bytes": os.path.getsize(req["out_path"]), "width": 0, "height": 0}
+            q.put(("done", res))
+            return
         if req["format"] == "blend":
             from .blender.make import BlenderError, make_blend
             from .blender.scene import SceneError
@@ -181,6 +196,33 @@ class Handler(BaseHTTPRequestHandler):
             return self.sketches.save(req.get("name", ""), req.get("source", ""), bool(req.get("overwrite", True)))
         if cmd == "sketch_file_stat":
             return self.sketches.stat(req.get("name", ""))
+        if cmd == "sketch_history":
+            return {"versions": self.sketches.history(req.get("name", ""))}
+        if cmd == "sketch_history_load":
+            return self.sketches.history_load(req.get("name", ""), req.get("version", ""))
+        if cmd == "favorites_load":
+            return self.sketches.meta_load(req.get("name", ""))
+        if cmd == "favorites_save":
+            meta = self.sketches.meta_load(req.get("name", ""))
+            meta["favorites"] = req.get("favorites") or []
+            return self.sketches.meta_save(req.get("name", ""), meta)
+        if cmd == "asset_list":
+            d = self.sketches.dir / "daten"
+            files = sorted(p for p in d.iterdir() if p.is_file() and p.suffix.lower() in ASSET_TYPES) \
+                if d.exists() else []
+            return {"dir": str(d), "files": [{"name": p.name, "size": p.stat().st_size} for p in files]}
+        if cmd == "asset_put":
+            import base64
+            name = Path(req.get("name", "")).name
+            if not name or name.startswith(".") or Path(name).suffix.lower() not in ASSET_TYPES:
+                return {"error": "Dateityp nicht erlaubt (Bilder, CSV, JSON, TXT, SVG, Schriften)"}
+            data = base64.b64decode(req.get("data", ""))
+            if len(data) > MAX_ASSET_BYTES:
+                return {"error": "Datei zu groß (max. 50 MB)"}
+            d = self.sketches.dir / "daten"
+            d.mkdir(parents=True, exist_ok=True)
+            (d / name).write_bytes(data)
+            return {"name": name, "size": len(data)}
         if cmd == "blender_status":
             import importlib.util
             from .blender.make import find_blender
@@ -198,8 +240,15 @@ class Handler(BaseHTTPRequestHandler):
             if any(j.state == "running" for j in self.jobs.values()):
                 return {"error": "Es läuft bereits ein Export – bitte warten oder abbrechen."}
             stem = f"{_safe_stem(req.get('name'))}_{int(req.get('seed') or 1)}"
+            if fmt == "series":
+                seeds = [int(s) for s in (req.get("seeds") or [])][:1000]
+                if not seeds:
+                    return {"error": "Keine Seeds angegeben"}
+                stem = f"{_safe_stem(req.get('name'))}_serie_{seeds[0]}-{seeds[-1]}"
+                req = {**req, "seeds": seeds, "frames": len(seeds), "stem": _safe_stem(req.get("name"))}
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            req = {**req, "out_path": str((OUTPUT_DIR / f"{stem}.{EXTENSIONS[fmt]}").resolve())}
+            req = {**req, "out_path": str((OUTPUT_DIR / f"{stem}.{EXTENSIONS[fmt]}").resolve()),
+                   "asset_dirs": [str(self.sketches.dir)]}
             job = ExportJob(req)
             self.jobs[job.id] = job
             return job.status()
@@ -252,6 +301,7 @@ class Handler(BaseHTTPRequestHandler):
             elif (out := self._desktop_or_none(cmd, req)) is not None:
                 self._json(out, 400 if out.get("error") and out.get("state") != "error" else 200)
             elif cmd in bridge.USER_CODE_COMMANDS:
+                req["asset_dirs"] = [str(self.sketches.dir)]
                 out = self.worker.call(cmd, req)
                 self._json(out, 500 if "error" in out else 200)
             elif cmd in bridge.COMMANDS:

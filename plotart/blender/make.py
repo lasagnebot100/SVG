@@ -40,6 +40,8 @@ def _main(args: dict) -> dict:
     import bpy
 
     from . import build, scene
+    from ..sketch import data
+    data.ASSET_DIRS[:] = args.get("asset_dirs") or []
     bpy.ops.wm.read_factory_settings(use_empty=True)
     desc = scene.build_scene(args["source"], args.get("params"), int(args.get("seed") or 1),
                              width_bu=float(args.get("width") or 10.0), frame=args.get("frame"),
@@ -79,6 +81,8 @@ def make_blend(source: str, out: str, *, params: dict | None = None, seed: int =
     args = {"source": source, "out": out, "params": params or {}, "seed": seed, "width": width,
             "frame": frame, "max_frames": max_frames, "options": options or {}, "render": render,
             "engine": engine, "samples": samples, "root": str(ROOT)}
+    from ..sketch import data
+    args["asset_dirs"] = list(data.ASSET_DIRS)
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     try:
         import bpy  # noqa: F401

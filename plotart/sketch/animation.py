@@ -55,6 +55,7 @@ class Animation:
                  frames: int | None = None, fps: float | None = None):
         self.source = source
         self.sk = sk = Sketch(seed, params)
+        sk.apply_keys(1)
         self.ns = ns = build_namespace(sk)
         sk.ns = ns
         self.frame = 0                 # frames produced so far
@@ -112,6 +113,7 @@ class Animation:
         self._pending_setup_items = []
         sk._matrix = IDENTITY                 # p5 resets transformations every frame
         sk._stack.clear()
+        sk.apply_keys(i + 1)                  # animated sliders
         ns.update(frame_count=i + 1, t=i / self.total, time=i / self.fps,
                   frames=self.total, fps=self.fps)
         buf = io.StringIO()

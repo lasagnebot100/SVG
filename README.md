@@ -17,7 +17,10 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Exporte:** Farb-SVG, PNG in jeder Auflösung (z. B. 300 dpi), **MP4, WebM, GIF, PNG-Sequenz**, **Plotter-SVG** (optimierte Linien, eine Ebene pro Farbe)
 - **Desktop-Arbeitsweise:** Skizzen im Ordner `skizzen/`, Speichern mit Strg+S; bearbeitest du die Datei in VS Code o. Ä., aktualisiert sich das Studio automatisch
 - **Blender-Anbindung:** Skizzen als Blender-Objekte (Flächen, Linien als Bänder oder 3D-Röhren, Text, Bilder), **Relief-Modus** für 3D-Skulpturen, Animationen auf der Zeitleiste, Add-on mit Reglern und automatischem Neuladen
-- **18 Beispiel-Skizzen** zum Lernen und Weiterbauen, davon 5 Animationen
+- **Bilder & Daten:** Fotos laden und Pixel abfragen (Stippling, Schraffur …), CSV/JSON (auch mit Dezimalkomma), SVG-Import, **Text als Pfade** aus TrueType-Schriften
+- **Pixel & Filter:** `pixels` als numpy-Array, 16 Filter (Weichzeichnen, Körnung, Dithering …), `filter()` auf die ganze Leinwand, `snapshot()` für Feedback-Effekte
+- **Kuration:** Varianten-Raster, Favoriten mit Vorschaubild, Versionsverlauf, Serien-Export mit Kontaktbogen, Regler-Keyframes für Animationen
+- **24 Beispiel-Skizzen** zum Lernen und Weiterbauen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -94,6 +97,52 @@ Wie in p5.js werden Transformationen vor jedem Bild zurückgesetzt, Farben und S
 
 MP4 und WebM brauchen **ffmpeg**: entweder installieren (https://ffmpeg.org/download.html) oder `pip install imageio-ffmpeg`. GIF und PNG-Sequenz funktionieren auch ohne ffmpeg.
 
+## Bilder & Daten
+
+![Bilder, Daten, Pixel](examples/bilder_daten.jpg)
+
+Dateien legst du in den Ordner `skizzen/daten/` (im Studio: Bereich **„Daten“**, „＋ Datei“ oder einfach auf die Vorschau ziehen). Ein Klick auf eine Datei fügt den passenden Befehl in den Code ein. Für erste Versuche gibt es eingebaute Beispiele: `"beispiel:portrait"`, `"beispiel:kugeln"`, `"beispiel:verlauf"`, `"beispiel:schrift"`, `"beispiel:temperaturen.csv"`, `"beispiel:zufall.json"`, `"beispiel:gedicht.txt"`.
+
+```python
+img = load_image("foto.jpg")                  # aus skizzen/daten/
+img.brightness(x, y)                          # 0 (schwarz) … 1 (weiß)
+img.get(x, y)                                 # Farbe des Pixels
+img.grid(40)                                  # mittlere Helligkeit pro Rasterzelle
+image(img.filter(BLUR, 3), 0, 0, width, height)
+
+rows = load_csv("messwerte.csv")              # Liste von Dicts, 12,5 → 12.5
+svg = load_svg("logo.svg"); draw_svg(svg, 100, 100, w=300)
+umrisse = text_paths("Hallo", 50, 200, 120, font="DejaVuSans-Bold")   # Buchstaben als Punktlisten
+text_shape("Hallo", 50, 200, 120)             # Text als echte Form (Plotter, Blender)
+```
+
+| Funktion | Zweck |
+|---|---|
+| `load_image(pfad)` | Bild laden → `.width`, `.height`, `.get()`, `.brightness()`, `.sample(u, v)`, `.grid()`, `.pixels`, `.resize()`, `.crop()`, `.rotate()`, `.filter()`, `.dither()` |
+| `load_csv` · `load_json` · `load_text` · `load_lines` | Daten laden (CSV erkennt `;`, `,`, Tab und Dezimalkomma) |
+| `load_svg` · `draw_svg` | SVG-Grafiken als Punktlisten importieren und zeichnen |
+| `text_paths` · `text_shape` | Text als Umrisse (TrueType-Schriften des Systems oder eigene `.ttf` aus `daten/`) |
+
+## Pixel & Filter
+
+| Funktion | Zweck |
+|---|---|
+| `create_image(w, h)` | Leeres Bild für Pixel-Algorithmen |
+| `img.pixels` / `img.set_pixels(arr)` | Pixel als numpy-Array H × W × 4 (0 … 1) lesen und schreiben |
+| `img.filter(art, stärke)` | `BLUR`, `SHARPEN`, `EDGES`, `EMBOSS`, `GRAY`, `INVERT`, `POSTERIZE`, `THRESHOLD`, `CONTRAST`, `BRIGHTNESS`, `SATURATION`, `PIXELATE`, `GRAIN`, `DITHER`, `SEPIA`, `LEVELS` |
+| `filter(art, stärke)` | Filter auf die ganze Leinwand (wie in p5) |
+| `snapshot()` | Bisher Gezeichnetes als Bild – im nächsten Animationsbild wieder zeichnen = Feedback-Effekte (Beispiel 22) |
+
+`filter(funktion, liste)` funktioniert weiterhin wie Pythons eingebautes `filter`.
+
+## Kuration & Serien
+
+- **🔲 Varianten** (Taste V): Das Studio rendert 9, 16 oder 25 Seeds als Vorschau. Mit „Regler auch würfeln“ werden auch die Regler zufällig gewählt. Ein Klick übernimmt die Variante.
+- **★ Favoriten** (Taste F): Seed, Regler und Keyframes werden mit Vorschaubild und Notiz gespeichert. Bei gespeicherten Skizzen landen sie in `skizzen/.plotart/<name>.json`, wandern also mit der Datei mit.
+- **🕘 Verlauf:** Jedes Speichern archiviert die vorige Fassung (die letzten 50) in `skizzen/.plotart/verlauf/`. Ältere Fassungen lassen sich mit einem Klick laden.
+- **🗂 Serie exportieren:** Viele Seeds auf einmal als PNG, SVG und/oder Plotter-SVG, mit **Kontaktbogen** und `serie.json`. Per Kommandozeile: `python3 -m plotart sketch 06 -n 24 --sheet --png`.
+- **◆ Regler-Keyframes** (Animationen): Bild wählen, Regler einstellen, ◆ klicken – zwischen den Keyframes wird weich übergeblendet. Das wirkt für alle `param()`, die in `draw()` abgefragt werden; es gilt auch für Video- und Blender-Export.
+
 ## Am Computer arbeiten
 
 - **Skizzen-Ordner:** Oben links unter **„📁 Meine Skizzen“** liegen deine Dateien aus `./skizzen/` (anderer Ordner: `python3 -m plotart --ordner pfad`). Dort gibt es auch „Neue Skizze“, „Neue Animation“ und „Speichern unter“.
@@ -110,6 +159,7 @@ MP4 und WebM brauchen **ffmpeg**: entweder installieren (https://ffmpeg.org/down
 | Strg/⌘ + / | Zeile auskommentieren |
 | Strg + Leertaste | Autovervollständigung |
 | Leertaste · ← → · Pos1 | Animation: Play/Pause · Bild zurück/vor · zum Anfang |
+| V · F | Varianten-Raster · als Favorit merken |
 | F1 | Hilfe |
 
 ## Blender
@@ -192,6 +242,12 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 16 | Animation: Wachsendes Bild | Ohne `background()` – die Zeichnung entsteht Strich für Strich |
 | 17 | Animation: Kinetische Typografie | Easing, `ping_pong()`, Versatz pro Zeile |
 | 18 | Relief-Stadt | gedacht für Blender: Helligkeit wird zur Höhe |
+| 19 | Bild: Stippling | `load_image()`, Helligkeit → Punktdichte |
+| 20 | Bild: Wellen-Schraffur | ein Bild als plotterfreundliche Wellenlinien |
+| 21 | Daten: Jahreskreis | `load_csv()` mit Dezimalkomma, radiale Darstellung |
+| 22 | Animation: Feedback-Tunnel | `snapshot()` + gedrehtes `image()` = Rückkopplung |
+| 23 | Text als Pfade | `text_paths()`, verformt und schraffiert für den Plotter |
+| 24 | Pixel-Sortierung | `img.pixels` mit numpy, Glitch-Effekt, Körnung |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -313,6 +369,10 @@ tools/build_web.py     baut die Browser-Version (Pyodide)
 
 - ~~Stufe 2 – Animation~~ ✓
 - ~~Stufe 3 – Blender~~ ✓
+- ~~Stufe 4 – Bilder & Daten~~ ✓ · ~~Stufe 5 – Pixel & Filter~~ ✓ · ~~Stufe 6 – Kuration & Serien~~ ✓
+- **Stufe 7 – Ton & Interaktion:** Audio-reaktive Animationen, Maus/Tastatur in der Vorschau, MIDI-Controller
+- **Stufe 8 – 3D in der Skizze:** `box()`, `sphere()`, Kamera & Licht, glTF/OBJ-Export
+- **Stufe 9 – Desktop-App:** eigenes Programmfenster mit Installer
 
 ## Tests
 
