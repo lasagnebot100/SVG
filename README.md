@@ -26,7 +26,11 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Algorithmic-Art-Workflow:** Konzept als Docstring, Seed-Navigation ◀ ▶, jede Skizze als **eigenständige Web-Seite** teilen
 - **p5.js/py5-kompatibel:** camelCase-Namen (`noFill()`, `strokeWeight()`, `createCanvas(…, WEBGL)`, `frameCount` …), shapely-Geometrie und Schraffur eingebaut
 - **GPU-Shader:** GLSL-Fragment-Shader im Shadertoy-Stil als Bildebene oder Nachbearbeitung (`shader_image()`, `apply_shader()`), am Computer über moderngl, im Browser über WebGL2
-- **35 Beispiel-Skizzen** zum Lernen und Weiterbauen
+- **Algorithmen-Baukasten:**
+  - Wachstum: Differential Growth, DLA, Space Colonization
+  - Simulation: Verlet-Physik, Schwärme, zelluläre Automaten, Reaktion-Diffusion
+  - Muster: Wave Function Collapse, Truchet, Delaunay, TSP-Kunst, Höhenlinien, Stromlinien, L-Systeme, Kreispackung
+- **50 Beispiel-Skizzen** zum Lernen und Weiterbauen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -199,6 +203,35 @@ fill("#1f5fbf"); box(200)
   - **Plotter** mit „Verdeckte Linien entfernen“: saubere Strichzeichnungen von 3D-Szenen.
   - **Blender:** baut echte Meshes.
 
+## Algorithmen-Baukasten
+
+![Algorithmen-Baukasten: Beispiele 36–50](examples/algorithmen.jpg)
+
+Bewährte Verfahren der generativen Kunst als fertige Bausteine. Sie geben Punkte und Linien zurück, die du frei gestaltest: Farbe, Strichstärke, Animation, Plotter.
+
+| Bereich | Funktion | Was entsteht |
+|---|---|---|
+| **Wachstum** | `DifferentialGrowth(punkte)` · `.step()` · `.points` | Linie, die sich wie Koralle oder Gehirn faltet |
+| | `DLA(seeds)` · `.grow(n)` · `.segments` | Korallen, Eisblumen, Blitze |
+| | `SpaceColonization(lichter, wurzeln)` · `.grow()` · `.branches` | Bäume, Adern, Wurzeln (mit Astdicke) |
+| **Simulation** | `Physics()` · `.add()` · `.spring()` · `.rope()` · `.cloth()` · `.attract()` | Seile, Stoff, Netze, die reißen können |
+| | `Flock(n, w, h)` · `.step()` · `.boids` | Schwärme (Boids) |
+| | `elementary_ca(regel)` · `Life(spalten, zeilen, regel="B3/S23")` | Zellautomaten, Game of Life und Verwandte |
+| | `reaction_diffusion(…, feed, kill)` | Turing-Muster (braucht numpy) |
+| **Muster** | `wave_function_collapse(spalten, zeilen, "rohre")` · `tile_paths()` | lückenlose Kachelmuster (Sätze „rohre“, „platine“ oder eigene) |
+| | `truchet()` · `join_paths()` | Truchet-Kacheln, zu langen Linien verbunden |
+| | `delaunay(punkte)` · `delaunay_edges()` | Dreiecksnetze, Low-Poly |
+| | `tsp_path(punkte)` | ein Bild aus einer einzigen Linie |
+| | `contours(fn, stufen, w, h)` · `contour_lines(feld, höhen)` | Höhenlinien wie auf der Wanderkarte |
+| | `streamlines(richtung, w, h, abstand)` | gleichmäßig verteilte Stromlinien |
+| | `lsystem(axiom, regeln, n)` · `turtle(text)` | Pflanzen, Fraktale (auch zufällige Regeln) |
+| | `circle_packing(w, h, min_r, max_r, inside=…)` | dichte Kreispackungen, auch in Formen |
+
+- **Deterministisch:** Alle Funktionen nutzen den Seed der Skizze.
+- **Animierbar:** Die Klassen (`DifferentialGrowth`, `DLA`, `Flock`, `Physics`, `Life` …) rechnen Schritt für Schritt in `draw()`.
+- **Schnell:** numpy beschleunigt einige Verfahren, wenn es installiert ist. Ohne numpy laufen sie in reinem Python.
+- **Beispiele:** Skizzen 36–50.
+
 ## Shader (GPU)
 
 Ein Fragment-Shader rechnet **jedes Pixel gleichzeitig auf der Grafikkarte**. Damit sind Effekte in Echtzeit möglich, die Form für Form zu langsam wären: fließende Farbfelder, Fraktale, Verzerrungen, Rückkopplung.
@@ -334,6 +367,9 @@ python3 -m plotart sketch 14 --blend spuren.blend --render frames/bild_####.png 
 | **Parameter** | `param(name, standard, min, max, step)` · `param(name, "a", options=[…])` · `param(name, True)` · `param(name, "#1f5fbf")` |
 | **Geometrie** | `hatch(form, abstand, winkel)` · `circle_shape()` · `rect_shape()` · `shape_union()` · `shape_difference()` · `shape_intersection()` · `offset_shape()` · `draw_geometry()` (shapely) |
 | **3D** | `box()` · `sphere()` · `torus()` · `cylinder()` · `cone()` · `plane()` · `mesh()` · `line3d()` · `rotate_x/y/z()` · `camera()` · `perspective()` · `ortho()` · `lights()` · `directional_light()` · `point_light()` · `orbit_control()` |
+| **Wachstum** | `DifferentialGrowth()` · `differential_growth()` · `DLA()` · `dla()` · `SpaceColonization()` · `space_colonization()` |
+| **Simulation** | `Physics()` · `Flock()` · `elementary_ca()` · `Life()` · `reaction_diffusion()` |
+| **Muster** | `wave_function_collapse()` · `tile_paths()` · `truchet()` · `join_paths()` · `delaunay()` · `delaunay_edges()` · `tsp_path()` · `contours()` · `contour_lines()` · `streamlines()` · `lsystem()` · `turtle()` · `circle_packing()` |
 | **Shader** | `create_shader(glsl)` · `load_shader("datei.frag")` · `shader_image(sh, …, **uniforms)` · `apply_shader(sh, **uniforms)` · `sh.set_uniform()` |
 | **Ton & Interaktion** | `load_audio()` · `mouse_x`, `mouse_y`, `mouse_is_pressed`, `key` · `mouse_pressed()` & Co. · `midi(cc)` · `osc(adresse)` · `osc_send(adresse, …)` |
 
@@ -378,6 +414,21 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 33 | Shader: Plasma-Feld | `create_shader()`, `iTime`, `iMouse`, Regler als Uniforms |
 | 34 | Shader: Nachbearbeitung | `apply_shader()`: Farbversatz, Körnung, Vignette wie ein alter Druck |
 | 35 | Shader: Rückkopplung | voriges Bild als `iChannel0` – leuchtende Schweife |
+| 36 | Wachstum: Differential Growth | wachsende, sich faltende Linie (Animation) |
+| 37 | Wachstum: DLA-Koralle | Teilchen kleben an; nur Neues wird gezeichnet |
+| 38 | Wachstum: Baum | Space Colonization, Astdicke nach dem Pipe-Modell |
+| 39 | Simulation: Schwarm | Boids, Regler live, Maus als Ziel |
+| 40 | Simulation: Stoff im Wind | Verlet-Physik, reißt bei Berührung |
+| 41 | Simulation: Zellautomaten | Wolfram-Regeln (30, 90, 110 …) |
+| 42 | Simulation: Game of Life | Regeln wählbar, Farbe nach Alter |
+| 43 | Muster: Wave Function Collapse | Rohre oder Platine, Kanten passen überall |
+| 44 | Muster: Truchet | Noise-gesteuerte Kacheln, zu Linien verbunden |
+| 45 | Muster: Low-Poly | Delaunay-Dreiecke mit Farbverlauf |
+| 46 | Muster: TSP-Porträt | ein Bild aus einer einzigen Linie |
+| 47 | Muster: Höhenlinien | Noise oder Reaktion-Diffusion als Karte |
+| 48 | Muster: Stromlinien | gleichmäßige Linien durch ein Richtungsfeld |
+| 49 | Muster: L-System-Wiese | zufällige Ersetzungsregeln, Turtle-Grafik |
+| 50 | Muster: Kreispackung | Kreise in einer Noise-Form, mit Ringen |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -495,6 +546,7 @@ plotart/
 │   ├── three.py       3D: Geometrie, Projektion, Licht · export3d.py: glTF/OBJ
 │   ├── audio.py       Ton-Analyse · occlusion.py: verdeckte Linien · geometry2d.py: Schraffur, shapely
 │   ├── shader.py      GPU-Shader: GLSL-Vorbau, moderngl (Desktop), WebGL2 (Browser)
+│   ├── algorithms/    Baukasten: growth.py, simulation.py, patterns.py
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
 ├── viewer.py          Skizze als eigenständige Web-Seite
@@ -506,7 +558,7 @@ plotart/
 ├── sketchfiles.py     Skizzen-Ordner (Speichern/Laden)
 └── cli.py             Kommandozeile
 tools/build_web.py     baut die Browser-Version (Pyodide)
-docs/                  TouchDesigner, Bibliotheken, Algorithmic-Art-Musterwerk
+docs/                  To-do-Liste (ROADMAP.md), TouchDesigner, Bibliotheken, Algorithmic-Art-Musterwerk
 ```
 
 ## Ausblick
@@ -515,8 +567,16 @@ docs/                  TouchDesigner, Bibliotheken, Algorithmic-Art-Musterwerk
 - ~~Stufe 3 – Blender~~ ✓
 - ~~Stufe 4 – Bilder & Daten~~ ✓ · ~~Stufe 5 – Pixel & Filter~~ ✓ · ~~Stufe 6 – Kuration & Serien~~ ✓
 - ~~Stufe 7 – Ton & Interaktion~~ ✓ · ~~Stufe 8 – 3D in der Skizze~~ ✓ (dazu OSC/TouchDesigner, Web-Seiten-Export)
-- ~~Stufe 10 – GPU-Shader~~ ✓
-- **Stufe 9 – Desktop-App:** eigenes Programmfenster mit Installer
+- ~~Stufe 10 – GPU-Shader~~ ✓ · ~~Algorithmen-Baukasten~~ ✓
+- Alles Weitere steht in der **[To-do-Liste](docs/ROADMAP.md)**:
+  - Website-Anbindung
+  - Plotter direkt ansteuern
+  - KI-Assistent
+  - Editionen
+  - Live/VJ
+  - neue Eingaben und Ausgabemaschinen
+  - Kurs
+  - Desktop-App
 
 ## Tests
 

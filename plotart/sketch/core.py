@@ -22,7 +22,7 @@ IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 OSC_VALUES: dict = {}       # address → list of values (latest message), shared by all sketches
 
 CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Geometrie", "Transformation", "3D",
-              "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Shader", "Animation", "Ton & Interaktion", "Zufall & Noise", "Mathe",
+              "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Shader", "Animation", "Ton & Interaktion", "Wachstum", "Simulation", "Muster", "Zufall & Noise", "Mathe",
               "Parameter", "Werkzeuge"]
 
 

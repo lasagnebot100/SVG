@@ -16,6 +16,7 @@ from .color import Color, Gradient
 from .core import CATEGORIES, Sketch
 from .render_svg import render_svg
 from .tools import TOOLS
+from . import algorithms  # noqa: F401,E402  (registers growth/simulation/pattern tools)
 
 SKETCH_FILE = "<skizze>"
 EXAMPLES_DIR = Path(__file__).parent / "examples"

@@ -48,6 +48,9 @@ self.onmessage = async (e) => {
         if (/load_image|create_image|snapshot\(|apply_shader|filter\(|load_svg|draw_svg|text_paths|text_shape/.test(source)) {
           await py.loadPackage("pillow", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
         }
+        if (/reaction_diffusion\(/.test(source)) {
+          await py.loadPackage("numpy", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
+        }
         if (/shape_union|shape_difference|shape_intersection|offset_shape|draw_geometry/.test(source)) {
           await py.loadPackage("shapely", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
         }
