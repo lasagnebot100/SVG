@@ -103,8 +103,8 @@ class ThreeDTests(unittest.TestCase):
 
     def test_examples_run(self):
         for path in sorted(EXAMPLES.glob("[23][0-9]_*.py")):
-            if int(path.name[:2]) < 25:
-                continue                                   # older examples: tested in test_sketch
+            if int(path.name[:2]) < 25 or "shader" in path.name:
+                continue                                   # older examples: test_sketch; shaders: test_shader
             with self.subTest(path.name):
                 r = run_sketch(path.read_text(encoding="utf-8"))
                 self.assertIsNone(r["error"], r["error"])

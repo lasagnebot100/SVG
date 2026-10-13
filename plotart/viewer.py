@@ -207,7 +207,7 @@ self.onmessage = async (e) => {
         py.FS.writeFile(full, src);
       }
       await py.loadPackagesFromImports(arg.source);
-      if (/load_image|create_image|snapshot\\(|filter\\(|load_svg|draw_svg|text_shape/.test(arg.source)) await py.loadPackage("pillow");
+      if (/load_image|create_image|snapshot\\(|apply_shader|filter\\(|load_svg|draw_svg|text_shape/.test(arg.source)) await py.loadPackage("pillow");
       if (/shape_union|shape_difference|shape_intersection|offset_shape|draw_geometry/.test(arg.source)) await py.loadPackage("shapely");
       py.runPython("import sys; sys.path.insert(0, '/home/pyodide'); from plotart import bridge");
       self.postMessage({ id, result: true });

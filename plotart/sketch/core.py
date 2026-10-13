@@ -22,7 +22,7 @@ IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 OSC_VALUES: dict = {}       # address → list of values (latest message), shared by all sketches
 
 CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Geometrie", "Transformation", "3D",
-              "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Animation", "Ton & Interaktion", "Zufall & Noise", "Mathe",
+              "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Shader", "Animation", "Ton & Interaktion", "Zufall & Noise", "Mathe",
               "Parameter", "Werkzeuge"]
 
 
@@ -972,6 +972,57 @@ class Sketch:
         if lines:
             self._path([[("M", *pts[0])] + [("L", *q) for q in pts[1:]] for pts, _ in lines],
                        [False] * len(lines), fill=False)
+
+    # ------------------------------------------------------------------ GPU shaders
+    def _shader_uniforms(self, x, y, w, h, s):
+        ns = self.ns or {}
+        mx, my = float(ns.get("mouse_x", 0.0)), float(ns.get("mouse_y", 0.0))
+        pressed = bool(ns.get("mouse_is_pressed", False))
+        fps = float(ns.get("fps", self.anim_fps)) or 30.0
+        return {"iTime": float(ns.get("time", 0.0)), "iTimeDelta": 1.0 / fps,
+                "iFrame": int(ns.get("frame_count", 1)) - 1,
+                "iMouse": ((mx - x) * s, (y + h - my) * s, 1.0 if pressed else 0.0, 0.0)}
+
+    @api("Shader")
+    def create_shader(self, source, name="Shader"):
+        """GLSL-Fragment-Shader im Shadertoy-Stil: void mainImage(out vec4 fragColor, in vec2 fragCoord).
+        Fertige Uniforms: iResolution, iTime, iFrame, iMouse, iChannel0–3. Läuft auf der Grafikkarte."""
+        from .shader import Shader
+        return Shader(str(source), name)
+
+    @api("Shader")
+    def load_shader(self, path):
+        """Shader aus einer Datei (.frag/.glsl) im Skizzen- oder daten/-Ordner laden."""
+        from .data import read_text
+        from .shader import Shader
+        return Shader(read_text(path), str(path))
+
+    @api("Shader")
+    def shader_image(self, sh, x=0, y=0, w=None, h=None, scale=None, **uniforms):
+        """Zeichnet den Shader als Bild (Standard: ganze Leinwand). Eigene Uniforms als Schlüsselwörter:
+        shader_image(sh, zoom=2.0, farbe="#ff0080"). Bilder gehen als iChannel0=img hinein."""
+        from .export import px_per_unit
+        from .shader import render, to_png
+        w = self.width - x if w is None else w
+        h = self.height - y if h is None else h
+        s = float(scale or px_per_unit(self, dpi=96))
+        pw, ph = max(1, round(w * s)), max(1, round(h * s))
+        rgba = render(sh, pw, ph, {**self._shader_uniforms(x, y, w, h, pw / w), **uniforms})
+        self._add("image", {"png": to_png(rgba, pw, ph), "x": x, "y": y, "w": w, "h": h, "smooth": True})
+
+    @api("Shader")
+    def apply_shader(self, sh, scale=None, **uniforms):
+        """Shader auf die ganze Leinwand anwenden: das bisher Gezeichnete ist iChannel0 (Nachbearbeitung, Feedback)."""
+        from .export import px_per_unit
+        from .shader import render, to_png
+        s = float(scale or px_per_unit(self, dpi=96))
+        canvas = self.snapshot(scale=s)
+        pw, ph = canvas.width, canvas.height
+        rgba = render(sh, pw, ph, {**self._shader_uniforms(0, 0, self.width, self.height, pw / self.width),
+                                   "iChannel0": canvas, **uniforms})
+        self.items = []
+        self.items.append(Item("image", {"png": to_png(rgba, pw, ph), "x": 0, "y": 0, "w": self.width,
+                                         "h": self.height, "smooth": True}, self._style, None))
 
     # ------------------------------------------------------------------ sound & interaction
     @api("Ton & Interaktion")

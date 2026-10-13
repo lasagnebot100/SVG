@@ -1252,6 +1252,11 @@ const TEMPLATES = {
     'def setup():\n    no_stroke()\n\n\ndef draw():\n    background("#0f1020")\n    # t läuft von 0 bis 1 – perfekt für nahtlose Loops\n' +
     '    for i in range(8):\n        a = TAU * (t + i / 8)\n        fill(hsb(i * 45, 70, 100))\n' +
     '        circle(width / 2 + cos(a) * 250, height / 2 + sin(a) * 250, 60)\n',
+  shader: '"""Neuer Shader"""\n# GLSL wie auf shadertoy.com – läuft auf der Grafikkarte (am Computer: pip install moderngl)\n' +
+    'size(800, 800)\nanimation(frames=120, fps=30)\n\nsh = create_shader("""\nuniform float zoom;\n\n' +
+    'void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;\n' +
+    '    float d = length(uv) * zoom - iTime;\n    vec3 col = 0.5 + 0.5 * cos(6.2831 * (d + vec3(0.0, 0.33, 0.67)));\n' +
+    '    fragColor = vec4(col, 1.0);\n}\n""")\n\n\ndef draw():\n    shader_image(sh, zoom=param("Zoom", 4.0, 0.5, 20.0))\n',
 };
 
 function isDirty() { return state.savedSource != null && getCode() !== state.savedSource; }
@@ -1273,6 +1278,7 @@ async function refreshFiles() {
   const sepOpt = new Option("──────────", ""); sepOpt.disabled = true; sel.add(sepOpt);
   sel.add(new Option("＋ Neue Skizze (Bild)", "new:bild"));
   sel.add(new Option("＋ Neue Animation", "new:animation"));
+  sel.add(new Option("＋ Neuer Shader (GPU)", "new:shader"));
   sel.add(new Option("💾 Speichern unter …", "saveas"));
   $("folders").innerHTML = `Skizzen: <code>${esc(r.dir)}</code><br>Exporte: <code>output/</code><br>` +
     `Tipp: Öffne die .py-Datei auch in deinem Editor (VS Code …) – Änderungen erscheinen hier automatisch.`;

@@ -25,7 +25,8 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **TouchDesigner & OSC:** Studio per OSC fernsteuern, `osc()`/`osc_send()` in Skizzen, Skizzen als Live-Textur in einem Script TOP
 - **Algorithmic-Art-Workflow:** Konzept als Docstring, Seed-Navigation ◀ ▶, jede Skizze als **eigenständige Web-Seite** teilen
 - **p5.js/py5-kompatibel:** camelCase-Namen (`noFill()`, `strokeWeight()`, `createCanvas(…, WEBGL)`, `frameCount` …), shapely-Geometrie und Schraffur eingebaut
-- **32 Beispiel-Skizzen** zum Lernen und Weiterbauen
+- **GPU-Shader:** GLSL-Fragment-Shader im Shadertoy-Stil als Bildebene oder Nachbearbeitung (`shader_image()`, `apply_shader()`), am Computer über moderngl, im Browser über WebGL2
+- **35 Beispiel-Skizzen** zum Lernen und Weiterbauen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -42,7 +43,7 @@ Das **Studio** öffnet sich unter `http://localhost:8765`.
 2. **🎲** würfelt einen neuen Seed, **✨** würfelt alle Regler.
 3. Exportieren über **SVG**, **PNG** oder **Plotter**; **💾 .py** speichert die Skizze.
 
-Optional: `pip install -e ".[full]"` installiert Pillow, numpy und imageio-ffmpeg (für Videos) sowie den Befehl `plotart`.
+Optional: `pip install -e ".[full]"` installiert Pillow, numpy, imageio-ffmpeg (für Videos), shapely und moderngl (für Shader) sowie den Befehl `plotart`.
 
 ![Studio](examples/studio.jpg)
 
@@ -198,6 +199,39 @@ fill("#1f5fbf"); box(200)
   - **Plotter** mit „Verdeckte Linien entfernen“: saubere Strichzeichnungen von 3D-Szenen.
   - **Blender:** baut echte Meshes.
 
+## Shader (GPU)
+
+Ein Fragment-Shader rechnet **jedes Pixel gleichzeitig auf der Grafikkarte**. Damit sind Effekte in Echtzeit möglich, die Form für Form zu langsam wären: fließende Farbfelder, Fraktale, Verzerrungen, Rückkopplung.
+
+```python
+sh = create_shader("""
+uniform float zoom;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = fragCoord / iResolution.xy;
+    fragColor = vec4(uv, 0.5 + 0.5 * sin(iTime * zoom), 1.0);
+}""")
+
+def draw():
+    shader_image(sh, zoom=param("Zoom", 2.0, 0.1, 10.0))   # Regler → Uniform
+    fill(255); circle(width / 2, height / 2, 100)          # normal darüber zeichnen
+```
+
+- **Schreibweise wie auf [Shadertoy](https://www.shadertoy.com/):**
+  - `mainImage()` mit den Uniforms `iResolution`, `iTime`, `iFrame`, `iMouse` und `iChannel0`–`iChannel3`.
+  - Viele Shadertoy-Shader laufen ohne Änderung.
+  - Wer will, schreibt ein eigenes `void main()`.
+- **Funktionen:**
+  - `shader_image(sh, x, y, w, h, **uniforms)` zeichnet den Shader als Bild.
+  - `apply_shader(sh)` bearbeitet die ganze Leinwand nach; das bisher Gezeichnete ist `iChannel0`.
+  - Bilder gehen als `iChannel0=img` hinein.
+- **Uniforms:** Zahlen, Vektoren und Farben (`"#ff0080"` wird zu `vec3`) als Schlüsselwörter. Mit `param()` in `draw()` sind sie Regler und mit ◆ keyframe-fähig.
+- **Wo es läuft:**
+  - **am Computer** über moderngl (`pip install moderngl`, Linux ohne Bildschirm: Pakete `libegl1` und `libgl1-mesa-dri`),
+  - **im Browser-Studio und in geteilten Web-Seiten** über WebGL2, ohne Installation.
+- **Fehler** im Shader erscheinen mit Zeilennummer im Shader-Text.
+- **Ergebnis:** ein normales Bild, also SVG, PNG, Video und Blender wie gewohnt. Der Plotter überspringt es, denn es enthält keine Linien.
+- **Neue Skizze mit Shader:** „📁 Meine Skizzen“ › „＋ Neuer Shader (GPU)“.
+
 ## TouchDesigner & OSC
 
 ```bash
@@ -300,6 +334,7 @@ python3 -m plotart sketch 14 --blend spuren.blend --render frames/bild_####.png 
 | **Parameter** | `param(name, standard, min, max, step)` · `param(name, "a", options=[…])` · `param(name, True)` · `param(name, "#1f5fbf")` |
 | **Geometrie** | `hatch(form, abstand, winkel)` · `circle_shape()` · `rect_shape()` · `shape_union()` · `shape_difference()` · `shape_intersection()` · `offset_shape()` · `draw_geometry()` (shapely) |
 | **3D** | `box()` · `sphere()` · `torus()` · `cylinder()` · `cone()` · `plane()` · `mesh()` · `line3d()` · `rotate_x/y/z()` · `camera()` · `perspective()` · `ortho()` · `lights()` · `directional_light()` · `point_light()` · `orbit_control()` |
+| **Shader** | `create_shader(glsl)` · `load_shader("datei.frag")` · `shader_image(sh, …, **uniforms)` · `apply_shader(sh, **uniforms)` · `sh.set_uniform()` |
 | **Ton & Interaktion** | `load_audio()` · `mouse_x`, `mouse_y`, `mouse_is_pressed`, `key` · `mouse_pressed()` & Co. · `midi(cc)` · `osc(adresse)` · `osc_send(adresse, …)` |
 
 Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")`, `fill("#1f5fbf", 128)`, `fill("tomato")`, `fill(color("navy").alpha(0.5))`, `fill(verlauf)`. Die vollständige Liste mit Beschreibungen steht im Studio unter **„? Hilfe“**.
@@ -340,6 +375,9 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 30 | 3D interaktiv: Kugelwolke | `orbit_control()`, Fibonacci-Kugel, Punktlicht |
 | 31 | OSC: Fernsteuerung | `osc()`/`osc_send()` mit TouchDesigner, TouchOSC & Co. |
 | 32 | Geordnete Unruhe | Musterwerk nach dem Algorithmic-Art-Skill, zwei Tinten für den Plotter |
+| 33 | Shader: Plasma-Feld | `create_shader()`, `iTime`, `iMouse`, Regler als Uniforms |
+| 34 | Shader: Nachbearbeitung | `apply_shader()`: Farbversatz, Körnung, Vignette wie ein alter Druck |
+| 35 | Shader: Rückkopplung | voriges Bild als `iChannel0` – leuchtende Schweife |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -456,6 +494,7 @@ plotart/
 │   ├── video.py       MP4/WebM/GIF/PNG-Sequenz-Export (mit Ton)
 │   ├── three.py       3D: Geometrie, Projektion, Licht · export3d.py: glTF/OBJ
 │   ├── audio.py       Ton-Analyse · occlusion.py: verdeckte Linien · geometry2d.py: Schraffur, shapely
+│   ├── shader.py      GPU-Shader: GLSL-Vorbau, moderngl (Desktop), WebGL2 (Browser)
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
 ├── viewer.py          Skizze als eigenständige Web-Seite
@@ -476,8 +515,8 @@ docs/                  TouchDesigner, Bibliotheken, Algorithmic-Art-Musterwerk
 - ~~Stufe 3 – Blender~~ ✓
 - ~~Stufe 4 – Bilder & Daten~~ ✓ · ~~Stufe 5 – Pixel & Filter~~ ✓ · ~~Stufe 6 – Kuration & Serien~~ ✓
 - ~~Stufe 7 – Ton & Interaktion~~ ✓ · ~~Stufe 8 – 3D in der Skizze~~ ✓ (dazu OSC/TouchDesigner, Web-Seiten-Export)
+- ~~Stufe 10 – GPU-Shader~~ ✓
 - **Stufe 9 – Desktop-App:** eigenes Programmfenster mit Installer
-- **Stufe 10 – GPU-Shader:** GLSL-Fragment-Shader als Ebene in Skizzen (wie p5 `createShader`)
 
 ## Tests
 

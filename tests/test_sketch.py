@@ -25,6 +25,8 @@ class ExampleTests(unittest.TestCase):
             uses_images = any(f in ex["source"] for f in ("load_image", "create_image", "snapshot(", "filter("))
             if uses_images and not HAS_PIL:
                 continue
+            if "create_shader" in ex["source"]:
+                continue                                   # GPU examples: tests/test_shader.py
             with self.subTest(example=ex["name"]):
                 r = run_sketch(ex["source"], seed=5)
                 self.assertIsNone(r["error"], r["error"])
