@@ -102,7 +102,9 @@ class ThreeDTests(unittest.TestCase):
         self.assertGreater(dot["z_base"], max(zs))                       # later 2D in front
 
     def test_examples_run(self):
-        for path in sorted(EXAMPLES.glob("2[5-9]_*.py")):
+        for path in sorted(EXAMPLES.glob("[23][0-9]_*.py")):
+            if int(path.name[:2]) < 25:
+                continue                                   # older examples: tested in test_sketch
             with self.subTest(path.name):
                 r = run_sketch(path.read_text(encoding="utf-8"))
                 self.assertIsNone(r["error"], r["error"])
@@ -254,6 +256,110 @@ class OSCTests(unittest.TestCase):
                                            "osc": snap})
         self.assertEqual(r["log"].split(), ["0.75", "[1.0,", "2.0]", "9"])
         bridge.dispatch("sketch_run", {"source": "pass", "osc": {}})
+
+
+@unittest.skipUnless(HAS_PIL and HAS_NUMPY, "Pillow/numpy fehlt")
+class TouchDesignerTests(unittest.TestCase):
+    def test_renderer(self):
+        from plotart.touchdesigner import TDRenderer
+        src = ('size(40, 20)\ndef draw():\n    background(0)\n    fill(255)\n'
+               '    rect(0, 0, 40 * osc("/td/level", 0), 10)\n    osc_send("/x", mouse_x)')
+        r = TDRenderer(src, scale=1)
+        a = r.next_frame(osc={"/td/level": 0.5}, mouse=(0.25, 1.0, False))
+        self.assertEqual(a.shape, (20, 40, 4))
+        self.assertEqual(str(a.dtype), "uint8")
+        # flipped for TD: the white bar at the top of the sketch is in the last rows
+        self.assertGreater(a[-2, 5, 0], 200)
+        self.assertLess(a[-2, 30, 0], 50)
+        self.assertLess(a[2, 5, 0], 50)
+        self.assertEqual(r.osc_out(), [("/x", [10.0])])
+        self.assertIsNone(r.error)
+
+    def test_script_top_callbacks_with_fake_op(self):
+        import tempfile, types
+        from plotart.touchdesigner import callbacks_template
+
+        class Par:
+            def __init__(self, v=None): self.v, self.default, self.normMin, self.normMax = v, None, 0, 1
+            def eval(self): return self.v if self.v is not None else self.default
+        class Page:
+            def __init__(self, op): self.op = op
+            def _add(self, name, **kw):
+                p = Par(); setattr(self.op.par, name, p); return [p]
+            appendFile = appendInt = appendFloat = appendToggle = appendCHOP = appendPulse = _add
+            def __getattr__(self, n): return self._add
+        class Op:
+            def __init__(self):
+                self.par = types.SimpleNamespace(); self.storage = {}; self.errors = []; self.img = None
+            def appendCustomPage(self, name): return Page(self)
+            def addError(self, m): self.errors.append(m)
+            def copyNumpyArray(self, a): self.img = a
+        ns = {"absTime": types.SimpleNamespace(frame=1)}
+        exec(compile(callbacks_template(), "cb", "exec"), ns)
+        op = Op()
+        ns["onSetupParameters"](op)
+        with tempfile.TemporaryDirectory() as tmp:
+            sketch = Path(tmp) / "s.py"
+            sketch.write_text("size(30, 30)\ndef draw():\n    background(255, 0, 0)\n", encoding="utf-8")
+            op.par.Sketch.v = str(sketch)
+            op.par.Scale.v = 1.0
+            ns["onCook"](op)
+        self.assertEqual(op.errors, [])
+        self.assertEqual(op.img.shape, (30, 30, 4))
+        self.assertEqual(tuple(op.img[0, 0]), (255, 0, 0, 255))
+
+
+class SkillAndLibraryTests(unittest.TestCase):
+    def test_viewer_page(self):
+        from plotart.viewer import build_viewer, package_files, sketch_doc
+        src = (EXAMPLES / "32_geordnete_unruhe.py").read_text(encoding="utf-8")
+        title, text = sketch_doc(src)
+        self.assertEqual(title, "Geordnete Unruhe")
+        self.assertIn("Prozent", text)
+        page = build_viewer(src, 5, {"Raster": 9, "__keys__": {}})
+        self.assertIn("<title>Geordnete Unruhe</title>", page)
+        self.assertIn('{"Raster": 9}', page)                 # internal keys are dropped
+        self.assertNotIn("%%", page)
+        self.assertNotIn("</script>\n<script>", page.split("const SOURCE")[1].split("const FILES")[0])
+        files = package_files()
+        self.assertIn("plotart/bridge.py", files)
+        self.assertNotIn("plotart/web.py", files)
+        self.assertFalse(any("/blender/" in f for f in files))
+        out = bridge.dispatch("viewer_html", {"source": "circle(1, 1, 1)", "seed": 3})
+        self.assertIn("pyodide", out["html"])
+
+    def test_p5_aliases(self):
+        r = run_sketch('createCanvas(300, 200, WEBGL)\nnoFill()\nstrokeWeight(2)\nv = createVector(3, 4)\n'
+                       'print(width, height, v.mag(), frameCount)\npush()\ntranslate(150, 100)\nrotateY(0.4)\nbox(50)\npop()')
+        self.assertIsNone(r["error"], r["error"])
+        self.assertEqual(r["log"].split(), ["300", "200", "5.0", "1"])
+        a = Animation('def draw():\n    print(frameCount)', endless=True)
+        a.next_frame()
+        self.assertEqual(a.next_frame().log.strip(), "2")
+
+    def test_hatch_pure_python(self):
+        from plotart.sketch.geometry2d import hatch_lines
+        sq = [(0, 0), (100, 0), (100, 100), (0, 100)]
+        lines = hatch_lines(sq, 10)
+        self.assertEqual(len(lines), 10)
+        self.assertAlmostEqual(sum(math.dist(a, b) for a, b in lines), 1000, 6)
+        holed = hatch_lines([sq, [(40, 40), (60, 40), (60, 60), (40, 60)]], 10)
+        self.assertAlmostEqual(sum(math.dist(a, b) for a, b in holed), 1000 - 2 * 20, 6)   # hole stays empty
+        diag = hatch_lines(sq, 10, math.pi / 4)
+        for a, b in diag:
+            self.assertAlmostEqual(abs(b[1] - a[1]), abs(b[0] - a[0]), 6)
+        sk, _, err, _ = execute('stroke(0)\nhatch([circle_shape(50, 50, 80)], 5)')
+        self.assertIsNone(err, err)
+        self.assertEqual(len(sk.items), 1)
+
+    @unittest.skipUnless(importlib.util.find_spec("shapely"), "shapely fehlt")
+    def test_shapely_bridge(self):
+        sk, _, err, _ = execute('a = shape_union(rect_shape(0, 0, 10, 10), rect_shape(5, 0, 10, 10))\n'
+                                'print(round(a.area))\nring = shape_difference(offset_shape(a, 2), a)\n'
+                                'print(len(ring.interiors))\nfill(0)\ndraw_geometry(ring)')
+        self.assertIsNone(err, err)
+        self.assertEqual(sk.items[-1].data["evenodd"], True)
+        self.assertEqual(len(sk.items[-1].data["subpaths"]), 2)        # outer ring + hole
 
 
 if __name__ == "__main__":

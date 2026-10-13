@@ -190,7 +190,7 @@ class Animation:
         self._pending_setup_meshes = []
         sk.begin_frame3d()
         sk.apply_keys(i + 1)                  # animated sliders
-        ns.update(frame_count=i + 1, t=(i % self.total) / self.total, time=i / self.fps,
+        ns.update(frame_count=i + 1, frameCount=i + 1, t=(i % self.total) / self.total, time=i / self.fps,
                   frames=self.total, fps=self.fps)
         buf = io.StringIO()
         err = None

@@ -103,7 +103,37 @@ def build_namespace(sk: Sketch) -> dict:
                "width": int(sk.width), "height": int(sk.height), "seed": sk.seed,
                "frame_count": 1, "t": 0.0, "time": 0.0, "frames": sk.anim_frames, "fps": sk.anim_fps})
     set_input_vars(ns, {**INPUT_DEFAULTS, **sk.input})
+    add_p5_aliases(ns, sk)
     return ns
+
+
+def _camel(name: str) -> str:
+    head, *rest = name.split("_")
+    return head + "".join(w[:1].upper() + w[1:] for w in rest)
+
+
+def add_p5_aliases(ns: dict, sk: Sketch):
+    """camelCase names like in p5.js / py5: noFill(), strokeWeight(), rotateX(), orbitControl() …
+
+    Code ported from p5.js or py5 then runs mostly unchanged (Python syntax assumed).
+    """
+    for name in list(ns):
+        if "_" in name.strip("_") and callable(ns[name]) and not name.startswith("_"):
+            ns.setdefault(_camel(name), ns[name])
+    t0 = time.perf_counter()
+
+    def create_canvas(w, h=None, renderer=None):
+        """createCanvas(w, h[, WEBGL]) – wie size(); 3D geht in plotart immer."""
+        sk.size(w, h)
+        ns.update(width=int(sk.width), height=int(sk.height))
+
+    ns.setdefault("createCanvas", create_canvas)
+    ns.setdefault("createVector", lambda x=0.0, y=0.0, z=None: ns["Vector"](x, y) if "Vector" in ns else (x, y))
+    ns.setdefault("millis", lambda: (ns.get("time", 0.0) or 0.0) * 1000 if ns.get("frame_count", 1) > 1
+                  else (time.perf_counter() - t0) * 1000)
+    ns.setdefault("frameCount", ns.get("frame_count", 1))
+    for const in ("WEBGL", "P2D", "P3D"):
+        ns.setdefault(const, const.lower())
 
 
 def _bind_rng(fn, sk):

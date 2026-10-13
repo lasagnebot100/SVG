@@ -200,6 +200,13 @@ def audio_data(req: dict) -> dict:
     return {"mime": mime, "base64": base64.b64encode(path.read_bytes()).decode()}
 
 
+def viewer_html(req: dict) -> dict:
+    """The sketch as a stand-alone web page (Pyodide, seed navigation, sliders, downloads)."""
+    from .viewer import build_viewer
+    return {"html": build_viewer(req.get("source", ""), int(req.get("seed") or 1), req.get("params") or {},
+                                 title=req.get("title") or None)}
+
+
 def sketch_export(req: dict) -> dict:
     """Render a whole animation to a file (used by the CLI-less desktop export jobs)."""
     from .sketch.video import export_animation
@@ -227,6 +234,7 @@ COMMANDS = {
     "sketch_3d": sketch_3d,
     "anim_live": anim_live,
     "audio_data": audio_data,
+    "viewer_html": viewer_html,
     "export_capabilities": export_capabilities,
 }
 # commands that execute user code (the server runs them in a separate process)

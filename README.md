@@ -20,7 +20,12 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Bilder & Daten:** Fotos laden und Pixel abfragen (Stippling, Schraffur …), CSV/JSON (auch mit Dezimalkomma), SVG-Import, **Text als Pfade** aus TrueType-Schriften
 - **Pixel & Filter:** `pixels` als numpy-Array, 16 Filter (Weichzeichnen, Körnung, Dithering …), `filter()` auf die ganze Leinwand, `snapshot()` für Feedback-Effekte
 - **Kuration:** Varianten-Raster, Favoriten mit Vorschaubild, Versionsverlauf, Serien-Export mit Kontaktbogen, Regler-Keyframes für Animationen
-- **24 Beispiel-Skizzen** zum Lernen und Weiterbauen
+- **Ton & Interaktion:** `load_audio()` mit Pegel, Spektrum, Bass/Mitten/Höhen und Beat-Erkennung, Ton im Video; Maus, Tastatur und MIDI live im Studio, Aufnahme der Eingaben für den Export
+- **3D in der Skizze:** `box()`, `sphere()`, `torus()`, `mesh()`, Kamera, Lichter, `orbit_control()`; Export als **glTF (.glb)/OBJ**, echte 3D-Objekte in Blender, **verdeckte Linien entfernen** für 3D-Plots
+- **TouchDesigner & OSC:** Studio per OSC fernsteuern, `osc()`/`osc_send()` in Skizzen, Skizzen als Live-Textur in einem Script TOP
+- **Algorithmic-Art-Workflow:** Konzept als Docstring, Seed-Navigation ◀ ▶, jede Skizze als **eigenständige Web-Seite** teilen
+- **p5.js/py5-kompatibel:** camelCase-Namen (`noFill()`, `strokeWeight()`, `createCanvas(…, WEBGL)`, `frameCount` …), shapely-Geometrie und Schraffur eingebaut
+- **32 Beispiel-Skizzen** zum Lernen und Weiterbauen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -143,6 +148,80 @@ text_shape("Hallo", 50, 200, 120)             # Text als echte Form (Plotter, Bl
 - **🗂 Serie exportieren:** Viele Seeds auf einmal als PNG, SVG und/oder Plotter-SVG, mit **Kontaktbogen** und `serie.json`. Per Kommandozeile: `python3 -m plotart sketch 06 -n 24 --sheet --png`.
 - **◆ Regler-Keyframes** (Animationen): Bild wählen, Regler einstellen, ◆ klicken – zwischen den Keyframes wird weich übergeblendet. Das wirkt für alle `param()`, die in `draw()` abgefragt werden; es gilt auch für Video- und Blender-Export.
 
+## Ton & Interaktion
+
+**Audio-reaktiv** – Beispiel 29:
+
+```python
+ton = load_audio("musik.mp3")          # aus skizzen/daten/; eingebaut: "beispiel:beat.wav"
+def draw():
+    background(0, 40)
+    circle(width / 2, height / 2, 100 + 400 * ton.bass())
+    if ton.beat():
+        fill("#ff2e88")
+    for i, v in enumerate(ton.spectrum(32)):
+        rect(i * 25, height, 20, -v * 300)
+```
+
+- Werte von 0 bis 1:
+  - `level()`, `spectrum(n)`, `bass()`, `mid()`, `treble()`, `energy(lo, hi)`
+  - `waveform(n)` für Oszilloskop-Linien
+  - `beat()`, `since_beat()`, `beats()`
+- **Länge und Ton:** Die Animation dauert so lang wie der Ton. Im Studio läuft er synchron mit (🔊). MP4/WebM-Exporte enthalten die Tonspur.
+- **Formate:** WAV geht direkt, MP3/OGG/FLAC über ffmpeg.
+
+**Maus, Tastatur, MIDI** – 🎮 **Interaktiv** (Taste I) in der Zeitleiste:
+- **Variablen** wie in p5: `mouse_x`, `mouse_y`, `pmouse_x`, `mouse_is_pressed`, `key`, `key_is_pressed`.
+- **Ereignisse:** `mouse_pressed()`, `mouse_dragged()`, `mouse_wheel(delta)`, `key_pressed()` und weitere.
+- **⏺ Aufnahme:** Nimmt die Eingaben Bild für Bild auf. Vorschau und Video-Export spielen sie exakt ab.
+- **🎹 MIDI-Learn:** Regler anklicken, am Controller drehen (Chrome, Edge, Firefox). Mit `midi(cc)` liest die Skizze Controller direkt.
+- **Live-Regler:** Im Interaktiv-Modus wirken Regler sofort, wenn `param()` in `draw()` steht.
+
+## 3D
+
+```python
+lights()
+translate(width / 2, height / 2)
+rotate_x(0.5); rotate_y(t * TAU)
+fill("#1f5fbf"); box(200)
+```
+
+- **Formen:**
+  - `box`, `sphere`, `ellipsoid`, `cylinder`, `cone`, `torus`, `plane`
+  - `mesh(punkte, flächen)`, `line3d`, `polyline3d`
+- **Kamera und Licht:**
+  - `camera()`, `perspective()`, `ortho()`, `orbit_control()`
+  - `lights()`, `ambient_light()`, `directional_light()`, `point_light()`
+- **Ebene z = 0** entspricht genau der 2D-Leinwand. 2D und 3D lassen sich mischen.
+- **Exporte:**
+  - Knopf **3D** im Studio: `.glb`; mit Umschalt: `.obj`.
+  - **Plotter** mit „Verdeckte Linien entfernen“: saubere Strichzeichnungen von 3D-Szenen.
+  - **Blender:** baut echte Meshes.
+
+## TouchDesigner & OSC
+
+```bash
+python3 -m plotart studio --osc-in 9000 --osc-out 127.0.0.1:9001
+```
+
+- **Fernsteuerung** per OSC: `/param/<Name>`, `/seed`, `/random`, `/play`, `/pause`, `/live`.
+- **In Skizzen:** `osc("/td/level", 0)` liest Werte, `osc_send("/plotart/x", wert)` schickt sie zurück.
+- **Als Textur in TouchDesigner:** `python3 -m plotart touchdesigner` schreibt die Callbacks-Datei für einen Script TOP.
+- Anleitung, Begriffe und Lernpfad: **[docs/touchdesigner.md](docs/touchdesigner.md)**.
+
+## Algorithmische Kunst: vom Konzept zum Werk
+
+1. **Konzept:** Der Docstring der Skizze ist ihr Konzept. Die erste Zeile ist der Titel, der Rest die Philosophie. Das Studio zeigt beides im Feld **Konzept**.
+2. **Algorithmus:** Wenige, tiefe Regler; der Rest entsteht aus Seed, Noise und Regeln.
+3. **Seeds erkunden:** Mit ◀ ▶ (Alt + ←/→) Variante für Variante durchgehen, Varianten-Raster, Favoriten.
+4. **Teilen:** **🌐 Als Web-Seite teilen** erzeugt eine einzige HTML-Datei mit Seed-Navigation, Reglern und PNG/SVG-Download (Python läuft im Browser).
+
+**Musterwerk:** „Geordnete Unruhe“ (Beispiel 32), entstanden mit dem *algorithmic-art*-Skill:
+- [Philosophie](docs/algorithmic-art/geordnete-unruhe.md)
+- [p5.js-Viewer](docs/algorithmic-art/geordnete-unruhe.html)
+
+Weitere Python-Bibliotheken und wie sie mit plotart zusammenspielen (py5, vsketch/vpype, shapely, trimesh …): **[docs/bibliotheken.md](docs/bibliotheken.md)**.
+
 ## Am Computer arbeiten
 
 - **Skizzen-Ordner:** Oben links unter **„📁 Meine Skizzen“** liegen deine Dateien aus `./skizzen/` (anderer Ordner: `python3 -m plotart --ordner pfad`). Dort gibt es auch „Neue Skizze“, „Neue Animation“ und „Speichern unter“.
@@ -160,6 +239,8 @@ text_shape("Hallo", 50, 200, 120)             # Text als echte Form (Plotter, Bl
 | Strg + Leertaste | Autovervollständigung |
 | Leertaste · ← → · Pos1 | Animation: Play/Pause · Bild zurück/vor · zum Anfang |
 | V · F | Varianten-Raster · als Favorit merken |
+| Alt + ← / → | vorheriger / nächster Seed |
+| I | Interaktiv-Modus (Maus, Tastatur, MIDI) |
 | F1 | Hilfe |
 
 ## Blender
@@ -217,8 +298,11 @@ python3 -m plotart sketch 14 --blend spuren.blend --render frames/bild_####.png 
 | **Mathe** | `map_range()` · `lerp()` · `constrain()` · `dist()` · `smoothstep()` · `ease_in_out()` · `radians()` · `degrees()` · `Vector` · `sin`, `cos`, `sqrt`, … · `PI`, `TAU`, `HALF_PI` |
 | **Werkzeuge** | `poisson_disc()` · `voronoi_cells()` · `relax()` · `chaikin()` · `resample()` · `hatch_polygon()` · `polygon_area()` · `centroid()` · `point_in_polygon()` · `grid()` |
 | **Parameter** | `param(name, standard, min, max, step)` · `param(name, "a", options=[…])` · `param(name, True)` · `param(name, "#1f5fbf")` |
+| **Geometrie** | `hatch(form, abstand, winkel)` · `circle_shape()` · `rect_shape()` · `shape_union()` · `shape_difference()` · `shape_intersection()` · `offset_shape()` · `draw_geometry()` (shapely) |
+| **3D** | `box()` · `sphere()` · `torus()` · `cylinder()` · `cone()` · `plane()` · `mesh()` · `line3d()` · `rotate_x/y/z()` · `camera()` · `perspective()` · `ortho()` · `lights()` · `directional_light()` · `point_light()` · `orbit_control()` |
+| **Ton & Interaktion** | `load_audio()` · `mouse_x`, `mouse_y`, `mouse_is_pressed`, `key` · `mouse_pressed()` & Co. · `midi(cc)` · `osc(adresse)` · `osc_send(adresse, …)` |
 
-Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")`, `fill("tomato")`, `fill(color("navy").alpha(0.5))`, `fill(verlauf)`. Die vollständige Liste mit Beschreibungen steht im Studio unter **„? Hilfe“**.
+Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")`, `fill("#1f5fbf", 128)`, `fill("tomato")`, `fill(color("navy").alpha(0.5))`, `fill(verlauf)`. Die vollständige Liste mit Beschreibungen steht im Studio unter **„? Hilfe“**.
 
 ## Beispiel-Skizzen
 
@@ -248,6 +332,14 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 22 | Animation: Feedback-Tunnel | `snapshot()` + gedrehtes `image()` = Rückkopplung |
 | 23 | Text als Pfade | `text_paths()`, verformt und schraffiert für den Plotter |
 | 24 | Pixel-Sortierung | `img.pixels` mit numpy, Glitch-Effekt, Körnung |
+| 25 | 3D: Säulenstadt | Quader-Raster aus Noise, Lichter; mit verdeckten Linien plotbar |
+| 26 | 3D-Animation: Ringe im Licht | Tori, farbige Lichter, nahtloser Loop |
+| 27 | 3D für den Plotter: Landschaft | eigenes `mesh()`, Höhenfeld als Gitter |
+| 28 | Interaktiv: Partikel-Pinsel | Maus, Mausrad, Tastatur, Aufnahme |
+| 29 | Ton: Spektrum-Ring | `load_audio()`, Spektrum, Beat-Puls, Oszilloskop |
+| 30 | 3D interaktiv: Kugelwolke | `orbit_control()`, Fibonacci-Kugel, Punktlicht |
+| 31 | OSC: Fernsteuerung | `osc()`/`osc_send()` mit TouchDesigner, TouchOSC & Co. |
+| 32 | Geordnete Unruhe | Musterwerk nach dem Algorithmic-Art-Skill, zwei Tinten für den Plotter |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -262,8 +354,10 @@ Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, od
 | **GIF** | Animation als GIF (Endlosschleife) | mit ffmpeg optimierte Farbpalette, sonst Pillow |
 | **PNG-Sequenz** | Jedes Bild als PNG mit Transparenz, als ZIP | Zum Weiterbearbeiten in After Effects, Blender & Co. |
 | **.py** | Die Skizze selbst | Mit 📂 wieder öffnen |
+| **3D (.glb / .obj)** | 3D-Formen der Skizze | für Blender, TouchDesigner, three.js, 3D-Druck-Werkzeuge |
+| **Web-Seite (.html)** | eigenständige Seite mit Seed-Navigation und Reglern | Python läuft im Browser (braucht beim Öffnen Internet) |
 
-Überlappende Flächen werden beim Plotter-Export nicht ausgeblendet, weil ein Plotter alles zeichnet. Für Verdeckung (wie in Beispiel 11) eignen sich die fertigen Generatoren besser.
+Ein Plotter zeichnet jede Linie, auch verdeckte. Mit **„Verdeckte Linien entfernen“** (CLI: `--verdeckt`) werden Linien unter später gezeichneten, deckenden Flächen entfernt: für 3D-Szenen und überlappende Formen.
 
 ## Kommandozeile
 
@@ -277,6 +371,11 @@ python3 -m plotart sketch 14 --mp4 --gif             # Animation → output/14_p
 python3 -m plotart sketch anim.py --mp4 --frames 600 --fps 60 --scale 2   # 10 s, 60 fps, doppelte Auflösung
 python3 -m plotart sketch anim.py --png-seq          # alle Bilder als PNG (ZIP)
 python3 -m plotart studio --host 0.0.0.0             # im WLAN erreichbar (mit Zugangs-Token)
+python3 -m plotart studio --osc-in 9000 --osc-out 127.0.0.1:9001   # OSC (TouchDesigner, TouchOSC …)
+python3 -m plotart sketch 25 --plotter --verdeckt    # 3D-Plot ohne verdeckte Linien
+python3 -m plotart sketch 25 --3d glb                # 3D-Formen als glTF
+python3 -m plotart sketch 32 --html                  # Skizze als eigenständige Web-Seite
+python3 -m plotart touchdesigner                     # Callbacks-Datei für einen Script TOP
 ```
 
 ## Als Python-Bibliothek
@@ -353,8 +452,13 @@ def generate(d, rng, noise, p):
 ```
 plotart/
 ├── sketch/            Skizzen-Sprache (p5-ähnliche API), Renderer, Exporte, Beispiele
-│   ├── animation.py   Bild-für-Bild-Ausführung (setup/draw)
-│   └── video.py       MP4/WebM/GIF/PNG-Sequenz-Export
+│   ├── animation.py   Bild-für-Bild-Ausführung (setup/draw), Live-Eingaben
+│   ├── video.py       MP4/WebM/GIF/PNG-Sequenz-Export (mit Ton)
+│   ├── three.py       3D: Geometrie, Projektion, Licht · export3d.py: glTF/OBJ
+│   ├── audio.py       Ton-Analyse · occlusion.py: verdeckte Linien · geometry2d.py: Schraffur, shapely
+├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
+├── osc.py             OSC über UDP (reines Python)
+├── viewer.py          Skizze als eigenständige Web-Seite
 ├── blender/           Blender-Anbindung: Szene, Geometrie, Aufbau (bpy), Add-on, Paket
 ├── generators/        fertige Plotter-Generatoren
 ├── static/            Studio, Generator-Seite, Code-Editor (CodeMirror 5, MIT)
@@ -363,6 +467,7 @@ plotart/
 ├── sketchfiles.py     Skizzen-Ordner (Speichern/Laden)
 └── cli.py             Kommandozeile
 tools/build_web.py     baut die Browser-Version (Pyodide)
+docs/                  TouchDesigner, Bibliotheken, Algorithmic-Art-Musterwerk
 ```
 
 ## Ausblick
@@ -370,9 +475,9 @@ tools/build_web.py     baut die Browser-Version (Pyodide)
 - ~~Stufe 2 – Animation~~ ✓
 - ~~Stufe 3 – Blender~~ ✓
 - ~~Stufe 4 – Bilder & Daten~~ ✓ · ~~Stufe 5 – Pixel & Filter~~ ✓ · ~~Stufe 6 – Kuration & Serien~~ ✓
-- **Stufe 7 – Ton & Interaktion:** Audio-reaktive Animationen, Maus/Tastatur in der Vorschau, MIDI-Controller
-- **Stufe 8 – 3D in der Skizze:** `box()`, `sphere()`, Kamera & Licht, glTF/OBJ-Export
+- ~~Stufe 7 – Ton & Interaktion~~ ✓ · ~~Stufe 8 – 3D in der Skizze~~ ✓ (dazu OSC/TouchDesigner, Web-Seiten-Export)
 - **Stufe 9 – Desktop-App:** eigenes Programmfenster mit Installer
+- **Stufe 10 – GPU-Shader:** GLSL-Fragment-Shader als Ebene in Skizzen (wie p5 `createShader`)
 
 ## Tests
 

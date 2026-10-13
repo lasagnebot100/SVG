@@ -21,7 +21,7 @@ IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
 OSC_VALUES: dict = {}       # address → list of values (latest message), shared by all sketches
 
-CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Transformation", "3D",
+CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Geometrie", "Transformation", "3D",
               "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Animation", "Ton & Interaktion", "Zufall & Noise", "Mathe",
               "Parameter", "Werkzeuge"]
 
@@ -909,6 +909,69 @@ class Sketch:
     def duration(self, seconds):
         """Länge in Sekunden (setzt frames = Sekunden × fps)."""
         self.animation(frames=round(float(seconds) * self.anim_fps))
+
+    # ------------------------------------------------------------------ geometry (hatching, shapely)
+    @api("Geometrie")
+    def circle_shape(self, x, y, d, detail=72):
+        """Kreis als Punktliste – für Schraffur und shape_union() & Co."""
+        r = d / 2
+        return [(x + r * math.cos(math.tau * i / detail), y + r * math.sin(math.tau * i / detail))
+                for i in range(int(detail))]
+
+    @api("Geometrie")
+    def rect_shape(self, x, y, w, h):
+        """Rechteck als Punktliste."""
+        return [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+
+    @api("Geometrie")
+    def hatch(self, shape, spacing=4, angle=0.0, offset=0.0):
+        """Schraffiert eine Form mit parallelen Linien (Löcher bleiben frei) – ideal für Plotter.
+        shape: Punktliste, Liste von Ringen oder shapely-Geometrie. Gibt die Linien zurück."""
+        from .geometry2d import hatch_lines
+        lines = hatch_lines(shape, float(spacing), float(angle), float(offset))
+        if lines and self._style.stroke is not None:
+            self._path([[("M", *a), ("L", *b)] for a, b in lines], [False] * len(lines), fill=False)
+        return lines
+
+    @api("Geometrie")
+    def shape_union(self, *shapes):
+        """Vereinigung mehrerer Formen (braucht shapely) → Geometrie für draw_geometry()/hatch()."""
+        from .geometry2d import union
+        return union(*shapes)
+
+    @api("Geometrie")
+    def shape_difference(self, a, b):
+        """a ohne b (braucht shapely)."""
+        from .geometry2d import difference
+        return difference(a, b)
+
+    @api("Geometrie")
+    def shape_intersection(self, a, b):
+        """Schnittmenge von a und b (braucht shapely)."""
+        from .geometry2d import intersection
+        return intersection(a, b)
+
+    @api("Geometrie")
+    def offset_shape(self, shape, d, join="round"):
+        """Form um d vergrößern (d < 0: verkleinern) – für Konturlinien (braucht shapely)."""
+        from .geometry2d import offset
+        return offset(shape, d, join)
+
+    @api("Geometrie")
+    def draw_geometry(self, geom):
+        """Zeichnet eine shapely-Geometrie (Flächen mit Löchern, Linien) oder eine Punktliste."""
+        from .geometry2d import rings_of, to_geometry
+        if not hasattr(geom, "geom_type"):
+            geom = to_geometry(geom)
+        parts = rings_of(geom)
+        areas = [(pts, c) for pts, c in parts if c and len(pts) >= 3]
+        lines = [(pts, c) for pts, c in parts if not c and len(pts) >= 2]
+        if areas:
+            self._path([[("M", *pts[0])] + [("L", *q) for q in pts[1:]] for pts, _ in areas],
+                       [True] * len(areas), evenodd=True)
+        if lines:
+            self._path([[("M", *pts[0])] + [("L", *q) for q in pts[1:]] for pts, _ in lines],
+                       [False] * len(lines), fill=False)
 
     # ------------------------------------------------------------------ sound & interaction
     @api("Ton & Interaktion")

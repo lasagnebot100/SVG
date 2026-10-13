@@ -203,6 +203,11 @@ def _run_sketch_cmd(args) -> int:
                 f.write(to_svg(d))
             st = d.stats()
             written.append(f"{base}_plotter.svg ({st['paths']} Pfade, ca. {st['minutes']} min)")
+        if args.html:
+            from .viewer import build_viewer
+            with open(base + ".html", "w", encoding="utf-8") as f:
+                f.write(build_viewer(source, seed, params))
+            written.append(base + ".html")
         if args.export3d and sk.meshes3d:
             from .sketch.export3d import to_glb, to_obj
             if args.export3d == "glb":
@@ -250,6 +255,8 @@ def main(argv=None):
     sk.add_argument("--hidden-lines", "--verdeckt", dest="hidden_lines", action="store_true",
                     help="Plotter: von Flächen verdeckte Linien entfernen (3D, Überlappungen)")
     sk.add_argument("--3d", dest="export3d", choices=("glb", "obj"), help="3D-Formen als .glb oder .obj exportieren")
+    sk.add_argument("--html", action="store_true",
+                    help="zusätzlich eigenständige Web-Seite (Seed-Navigation, Regler; Python per Pyodide)")
     sk.add_argument("--no-svg", action="store_true", help="kein Farb-SVG schreiben")
     sk.add_argument("--sheet", action="store_true",
                     help="Serie: alle Seeds (-s, -n) in einen Ordner mit Kontaktbogen und serie.json")
@@ -277,6 +284,10 @@ def main(argv=None):
 
     ba = sub.add_parser("blender-addon", help="Blender-Erweiterung (ZIP) bauen")
     ba.add_argument("-o", "--out", default=os.path.join("output", "plotart_blender.zip"))
+
+    td = sub.add_parser("touchdesigner", aliases=["td"],
+                        help="Callbacks-Datei für einen Script TOP in TouchDesigner schreiben")
+    td.add_argument("-o", "--out", default=os.path.join("output", "plotart_script_top.py"))
 
     sub.add_parser("list", help="Generatoren und Parameter auflisten")
 
@@ -312,6 +323,19 @@ def main(argv=None):
         print(f"✓ {path}\n  In Blender: Bearbeiten › Einstellungen › Erweiterungen › ▾ (oben rechts) › "
               "„Von Datenträger installieren …“ → diese ZIP wählen.\n"
               "  Danach im 3D-Viewport die Seitenleiste (Taste N) öffnen › Reiter „plotart“.")
+        return
+
+    if args.cmd in ("touchdesigner", "td"):
+        from .touchdesigner import callbacks_template
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        text = callbacks_template().replace('PLOTART_PATH = r""', f"PLOTART_PATH = r{root!r}", 1)
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        with open(args.out, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"✓ {args.out}\n"
+              "  In TouchDesigner: Script TOP anlegen › Parameter „Callbacks DAT“ › Text DAT mit dieser Datei\n"
+              "  (Text DAT › Parameter „File“ = diese Datei). Dann Seite „plotart“ › Skizze (.py) wählen.\n"
+              "  Pillow für Python 3.11 nötig – Anleitung: docs/touchdesigner.md")
         return
 
     if args.cmd == "list":

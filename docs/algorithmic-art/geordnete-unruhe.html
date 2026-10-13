@@ -1,0 +1,352 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"></head><body>
+<title>Geordnete Unruhe</title>
+<!-- Aufgebaut auf der Viewer-Vorlage des „algorithmic-art“-Skills (Apache-2.0). Philosophie: docs/algorithmic-art/geordnete-unruhe.md -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+    /* Layout: Seitenleiste (Seed → Parameter → Farben → Aktionen) links, Blatt rechts – bewusst nur ein helles Thema */
+    :root {
+        --anthropic-dark: #141413;
+        --anthropic-light: #faf9f5;
+        --anthropic-mid-gray: #b0aea5;
+        --text-soft: #6f6d65;
+        --anthropic-light-gray: #e8e6dc;
+        --anthropic-orange: #d97757;
+        --anthropic-orange-dark: #c86641;
+        --anthropic-blue: #6a9bcc;
+        --anthropic-blue-dark: #5a8bb8;
+        --anthropic-green: #788c5d;
+        --anthropic-green-dark: #6b7b52;
+        --panel: rgba(255, 255, 255, 0.95);
+        --sheet: #ffffff;
+        --font-display: 'Lora', Georgia, serif;
+        --font-body: 'Poppins', system-ui, sans-serif;
+        --font-mono: 'Courier New', ui-monospace, monospace;
+        color-scheme: light;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+        font-family: var(--font-body);
+        background: linear-gradient(135deg, var(--anthropic-light) 0%, #f5f3ee 100%);
+        background-color: var(--anthropic-light);
+        min-height: 100%;
+        color: var(--anthropic-dark);
+    }
+    .container { display: flex; min-height: 100vh; padding: 20px; gap: 20px; }
+    .sidebar {
+        width: 320px; flex-shrink: 0; background: var(--panel); backdrop-filter: blur(10px);
+        padding: 24px; border-radius: 12px; box-shadow: 0 10px 30px rgba(20, 20, 19, 0.1);
+        overflow-y: auto; overflow-x: hidden;
+    }
+    .sidebar h1 { font-family: var(--font-display); font-size: 24px; font-weight: 500; margin-bottom: 8px; text-wrap: balance; }
+    .sidebar .subtitle { color: var(--text-soft); font-size: 13px; margin-bottom: 28px; line-height: 1.55; font-family: var(--font-display); }
+    .subtitle em { font-style: italic; }
+    .control-section { margin-bottom: 28px; }
+    .control-section h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .control-section h3::before { content: '•'; color: var(--anthropic-orange); font-weight: bold; }
+    .seed-input {
+        width: 100%; background: var(--anthropic-light); padding: 12px; border-radius: 8px; font-family: var(--font-mono);
+        font-size: 14px; margin-bottom: 12px; border: 1px solid var(--anthropic-light-gray); text-align: center; color: var(--anthropic-dark);
+    }
+    .seed-input:focus { outline: none; border-color: var(--anthropic-orange); box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.1); background: var(--sheet); }
+    .seed-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .control-group { margin-bottom: 18px; }
+    .control-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+    .slider-container { display: flex; align-items: center; gap: 12px; }
+    .slider-container input[type="range"] {
+        flex: 1; min-width: 0; height: 4px; background: var(--anthropic-light-gray); border-radius: 2px; outline: none; -webkit-appearance: none;
+    }
+    .slider-container input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 16px; height: 16px; background: var(--anthropic-orange); border-radius: 50%; cursor: pointer; transition: all 0.2s ease;
+    }
+    .slider-container input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); background: var(--anthropic-orange-dark); }
+    .slider-container input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: var(--anthropic-orange); border-radius: 50%; border: none; cursor: pointer; }
+    .slider-container input[type="range"]:focus-visible { box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.35); }
+    .value-display { font-family: var(--font-mono); font-size: 12px; color: var(--text-soft); min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+    .color-group { margin-bottom: 14px; }
+    .color-group label { display: block; font-size: 12px; color: var(--text-soft); margin-bottom: 4px; }
+    .color-picker-container { display: flex; align-items: center; gap: 8px; }
+    .color-picker-container input[type="color"] { width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; background: none; padding: 0; }
+    .color-value { font-family: var(--font-mono); font-size: 12px; color: var(--text-soft); }
+    .button {
+        background: var(--anthropic-orange); color: #fff; border: none; padding: 10px 16px; border-radius: 6px; font-size: 14px;
+        font-weight: 500; cursor: pointer; transition: all 0.2s ease; width: 100%; font-family: var(--font-body);
+    }
+    .button:hover { background: var(--anthropic-orange-dark); transform: translateY(-1px); }
+    .button:active { transform: translateY(0); }
+    .button:focus-visible { outline: 2px solid var(--anthropic-dark); outline-offset: 2px; }
+    .button.secondary { background: var(--anthropic-blue); }
+    .button.secondary:hover { background: var(--anthropic-blue-dark); }
+    .button.tertiary { background: var(--anthropic-green); }
+    .button.tertiary:hover { background: var(--anthropic-green-dark); }
+    .button-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .button-row .button { flex: 1; }
+    .canvas-area { flex: 1; display: flex; align-items: flex-start; justify-content: center; min-width: 0; }
+    #canvas-container {
+        width: 100%; max-width: 1000px; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 20px 40px rgba(20, 20, 19, 0.1); background: var(--sheet);
+    }
+    #canvas-container canvas { display: block; width: 100% !important; height: auto !important; }
+    .loading { display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--text-soft); aspect-ratio: 1; }
+    .note { font-size: 12px; color: var(--text-soft); line-height: 1.5; }
+    .export { margin-top: 10px; }
+    .export img { width: 100%; border-radius: 8px; border: 1px solid var(--anthropic-light-gray); }
+    @media (max-width: 700px) {
+        .container { flex-direction: column; padding: 16px; }
+        .sidebar { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { .button, .slider-container input::-webkit-slider-thumb { transition: none; } }
+</style>
+
+<div class="container">
+    <div class="sidebar">
+        <h1>Geordnete Unruhe</h1>
+        <div class="subtitle">Ein Raster aus Quadraten in Quadraten – und ein unsichtbares Feld, das bestimmt, wie viel Abweichung jede Zelle erträgt. Fern der Bruchlinie bleibt ein einziges Prozent Unruhe; nahe am Bruch kippen Ringe, verschieben sich Ecken, fallen Quadrate aus. <em>Alles ist Strich, gedacht für die Feder des Plotters.</em></div>
+
+        <div class="control-section">
+            <h3>Seed</h3>
+            <input type="number" id="seed-input" class="seed-input" value="12345" min="1" onchange="updateSeed()" aria-label="Seed">
+            <div class="seed-controls">
+                <button class="button secondary" onclick="previousSeed()">← Zurück</button>
+                <button class="button secondary" onclick="nextSeed()">Weiter →</button>
+            </div>
+            <button class="button tertiary" onclick="randomSeedAndUpdate()">↻ Zufällig</button>
+        </div>
+
+        <div class="control-section">
+            <h3>Parameter</h3>
+            <div class="control-group">
+                <label for="raster">Raster (Zellen pro Seite)</label>
+                <div class="slider-container">
+                    <input type="range" id="raster" min="4" max="30" step="1" value="12" oninput="updateParam('raster', this.value)">
+                    <span class="value-display" id="raster-value">12</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label for="ringe">Ringe pro Zelle</label>
+                <div class="slider-container">
+                    <input type="range" id="ringe" min="2" max="14" step="1" value="6" oninput="updateParam('ringe', this.value)">
+                    <span class="value-display" id="ringe-value">6</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label for="grund">Grundunruhe</label>
+                <div class="slider-container">
+                    <input type="range" id="grund" min="0" max="0.2" step="0.005" value="0.01" oninput="updateParam('grund', this.value)">
+                    <span class="value-display" id="grund-value">0.010</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label for="bruch">Kraft des Bruchs</label>
+                <div class="slider-container">
+                    <input type="range" id="bruch" min="0" max="2" step="0.05" value="0.9" oninput="updateParam('bruch', this.value)">
+                    <span class="value-display" id="bruch-value">0.90</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label for="gefaelle">Gefälle</label>
+                <div class="slider-container">
+                    <input type="range" id="gefaelle" min="0" max="1.5" step="0.05" value="0.2" oninput="updateParam('gefaelle', this.value)">
+                    <span class="value-display" id="gefaelle-value">0.20</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label for="schwelle">Zweite Tinte ab Unruhe</label>
+                <div class="slider-container">
+                    <input type="range" id="schwelle" min="0" max="1.05" step="0.05" value="0.55" oninput="updateParam('schwelle', this.value)">
+                    <span class="value-display" id="schwelle-value">0.55</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Farben</h3>
+            <div class="color-group">
+                <label for="tinte">Tinte</label>
+                <div class="color-picker-container">
+                    <input type="color" id="tinte" value="#1d3f9e" oninput="updateColor('tinte', this.value)">
+                    <span class="color-value" id="tinte-value">#1d3f9e</span>
+                </div>
+            </div>
+            <div class="color-group">
+                <label for="tinte2">Zweite Tinte</label>
+                <div class="color-picker-container">
+                    <input type="color" id="tinte2" value="#d9472b" oninput="updateColor('tinte2', this.value)">
+                    <span class="color-value" id="tinte2-value">#d9472b</span>
+                </div>
+            </div>
+            <div class="color-group">
+                <label for="papier">Papier</label>
+                <div class="color-picker-container">
+                    <input type="color" id="papier" value="#f6f1e7" oninput="updateColor('papier', this.value)">
+                    <span class="color-value" id="papier-value">#f6f1e7</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3>Aktionen</h3>
+            <div class="button-row">
+                <button class="button" onclick="regenerate()">Neu erzeugen</button>
+                <button class="button" onclick="resetParameters()">Zurücksetzen</button>
+            </div>
+            <button class="button secondary" onclick="downloadPNG()">PNG speichern</button>
+            <div class="export" id="export" hidden>
+                <p class="note">Falls kein Download startet: Bild mit Rechtsklick (am Handy: lange drücken) speichern.</p>
+                <img id="export-img" alt="Aktuelles Blatt als PNG">
+            </div>
+        </div>
+        <p class="note">Python-Fassung für Plotter und Studio: <code>32_geordnete_unruhe.py</code> in plotart.</p>
+    </div>
+
+    <div class="canvas-area">
+        <div id="canvas-container">
+            <div class="loading" id="loading">Das Blatt wird gezeichnet …</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ═══════════════════════════════════════════════════════════════════════
+    // PARAMETER – die wenigen, tiefen Stellschrauben des Systems
+    // ═══════════════════════════════════════════════════════════════════════
+    let params = {
+        seed: 12345,
+        raster: 12,        // Zellen pro Seite
+        ringe: 6,          // Quadrate pro Zelle
+        grund: 0.01,       // ein Prozent – der Hauch, der die Maschine verrät
+        bruch: 0.9,        // Kraft der Bruchlinie
+        gefaelle: 0.2,     // Zunahme der Unruhe in einer zufälligen Richtung
+        schwelle: 0.55,    // ab hier greift die Maschine zur zweiten Tinte
+        tinte: '#1d3f9e',
+        tinte2: '#d9472b',
+        papier: '#f6f1e7'
+    };
+    const defaultParams = { ...params };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ALGORITHMUS – Raster, Gelände, Bruch
+    // ═══════════════════════════════════════════════════════════════════════
+    function setup() {
+        const c = createCanvas(1200, 1200);
+        c.parent('canvas-container');
+        pixelDensity(1);
+        noLoop();
+        document.getElementById('loading').hidden = true;
+        initializeSystem();
+    }
+
+    function initializeSystem() { redraw(); }
+
+    function draw() {
+        randomSeed(params.seed);
+        noiseSeed(params.seed);
+        background(params.papier);
+        noFill();
+        strokeJoin(ROUND);
+        strokeWeight(width / 800 * 1.1);
+
+        const n = params.raster;
+        const rand = width * 70 / 800;
+        const zelle = (width - 2 * rand) / n;
+
+        // das Gelände: ein Gefälle in zufälliger Richtung und eine gewundene Bruchlinie
+        const richtung = random(TWO_PI);
+        const lage = random(0.3, 0.7), amp = random(0.06, 0.18);
+        const freq = random(0.8, 2.2), phase = random(TWO_PI), dreh = random(-0.7, 0.7);
+
+        const unruhe = (u, v) => {
+            const g = 0.5 + (u - 0.5) * cos(richtung) + (v - 0.5) * sin(richtung);
+            const x = 0.5 + (u - 0.5) * cos(dreh) - (v - 0.5) * sin(dreh);
+            const y = 0.5 + (u - 0.5) * sin(dreh) + (v - 0.5) * cos(dreh);
+            const d = abs(y - (lage + amp * sin(TWO_PI * freq * x + phase)));
+            const band = exp(-sq(d / 0.11));
+            const textur = noise(u * 4, v * 4);
+            return params.grund + params.gefaelle * sq(max(0, g)) * 0.6 + params.bruch * band * (0.35 + 0.65 * textur);
+        };
+
+        const ecken = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+        for (let j = 0; j < n; j++) {
+            for (let i = 0; i < n; i++) {
+                const cx = rand + (i + 0.5) * zelle;
+                const cy = rand + (j + 0.5) * zelle;
+                const s = unruhe((i + 0.5) / n, (j + 0.5) / n);
+                for (let k = 0; k < params.ringe; k++) {
+                    if (k > 0 && random() < s * 0.3) continue;        // ein ausgefallenes Quadrat
+                    const halb = zelle * 0.46 * (params.ringe - k) / params.ringe;
+                    const r = randomGaussian(0, s * 0.35);
+                    const dx = randomGaussian(0, s * zelle * 0.06);
+                    const dy = randomGaussian(0, s * zelle * 0.06);
+                    const zweite = s > params.schwelle && random() < (s - params.schwelle) * 1.6;
+                    stroke(zweite ? params.tinte2 : params.tinte);
+                    beginShape();
+                    for (const [ex, ey] of ecken) {
+                        const px = ex * halb + random(-1, 1) * s * zelle * 0.07;
+                        const py = ey * halb + random(-1, 1) * s * zelle * 0.07;
+                        vertex(cx + dx + px * cos(r) - py * sin(r), cy + dy + px * sin(r) + py * cos(r));
+                    }
+                    endShape(CLOSE);
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // BEDIENUNG
+    // ═══════════════════════════════════════════════════════════════════════
+    const decimals = { grund: 3, bruch: 2, gefaelle: 2, schwelle: 2 };
+    function showValue(name) {
+        const v = params[name];
+        document.getElementById(name + '-value').textContent = name in decimals ? Number(v).toFixed(decimals[name]) : v;
+    }
+    function updateParam(name, value) {
+        params[name] = name === 'raster' || name === 'ringe' ? parseInt(value, 10) : parseFloat(value);
+        showValue(name);
+        initializeSystem();
+    }
+    function updateColor(name, value) {
+        params[name] = value;
+        document.getElementById(name + '-value').textContent = value;
+        initializeSystem();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SEED – wie in der Vorlage
+    // ═══════════════════════════════════════════════════════════════════════
+    function updateSeedDisplay() { document.getElementById('seed-input').value = params.seed; }
+    function updateSeed() {
+        const v = parseInt(document.getElementById('seed-input').value, 10);
+        if (v && v > 0) { params.seed = v; initializeSystem(); } else updateSeedDisplay();
+    }
+    function previousSeed() { params.seed = Math.max(1, params.seed - 1); updateSeedDisplay(); initializeSystem(); }
+    function nextSeed() { params.seed = params.seed + 1; updateSeedDisplay(); initializeSystem(); }
+    function randomSeedAndUpdate() { params.seed = Math.floor(Math.random() * 999999) + 1; updateSeedDisplay(); initializeSystem(); }
+    function regenerate() { initializeSystem(); }
+
+    function resetParameters() {
+        params = { ...defaultParams };
+        for (const name of ['raster', 'ringe', 'grund', 'bruch', 'gefaelle', 'schwelle']) {
+            document.getElementById(name).value = params[name];
+            showValue(name);
+        }
+        for (const name of ['tinte', 'tinte2', 'papier']) {
+            document.getElementById(name).value = params[name];
+            document.getElementById(name + '-value').textContent = params[name];
+        }
+        updateSeedDisplay();
+        initializeSystem();
+    }
+
+    function downloadPNG() {
+        try { saveCanvas('geordnete_unruhe_' + params.seed, 'png'); } catch (e) { /* Download gesperrt */ }
+        document.getElementById('export-img').src = document.querySelector('#canvas-container canvas').toDataURL('image/png');
+        document.getElementById('export').hidden = false;
+    }
+
+    window.addEventListener('load', updateSeedDisplay);
+</script>
+
+</body></html>

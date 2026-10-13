@@ -37,7 +37,7 @@ self.onmessage = async (e) => {
       py.runPython("import sys; sys.path.insert(0, '/home/pyodide'); from plotart import bridge");
       self.postMessage({ id, result: true });
     } else {
-      if (arg.cmd.startsWith("sketch_")) {
+      if (arg.cmd.startsWith("sketch_") || arg.cmd === "anim_frames" || arg.cmd === "anim_live") {
         // load numpy, Pillow, … automatically when a sketch imports them
         const source = JSON.parse(arg.body).source || "";
         await py.loadPackagesFromImports(source, {
@@ -47,6 +47,9 @@ self.onmessage = async (e) => {
         // plotart's image functions use Pillow internally (not visible as an import in the sketch)
         if (/load_image|create_image|snapshot\(|filter\(|load_svg|draw_svg|text_paths|text_shape/.test(source)) {
           await py.loadPackage("pillow", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
+        }
+        if (/shape_union|shape_difference|shape_intersection|offset_shape|draw_geometry/.test(source)) {
+          await py.loadPackage("shapely", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
         }
       }
       py.globals.set("_cmd", arg.cmd);

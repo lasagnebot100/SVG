@@ -167,6 +167,9 @@
 body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px;cursor:pointer}
 .field.learning{outline:2px solid #e09000!important;background:#fff6e0}
 [hidden]{display:none!important}
+.concept{font-size:12.5px;line-height:1.5;color:#555;max-height:220px;overflow:auto;margin-bottom:14px;
+  font-family:Georgia,"Times New Roman",serif}.concept b{display:block;font-size:13.5px;color:#222;margin-bottom:4px}
+.concept p{margin:0 0 6px}
 </style>
 </head>
 <body>
@@ -179,7 +182,9 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
   <button class="btn primary" id="run" title="Ausführen (Strg/⌘ + Enter)">▶ Ausführen</button>
   <button class="btn" id="live" title="Bei jeder Änderung automatisch ausführen">Live</button>
   <span class="sep"></span>
+  <button class="btn" id="seedPrev" title="Vorheriger Seed (Alt + ←)">◀</button>
   <input type="number" id="seed" min="1" step="1" title="Seed – gleicher Seed = gleiches Bild">
+  <button class="btn" id="seedNext" title="Nächster Seed (Alt + →)">▶</button>
   <button class="btn" id="dice" title="Neuer Seed (Strg/⌘ + Umschalt + Enter)">🎲</button>
   <button class="btn" id="variants" title="Varianten-Raster: viele Seeds auf einen Blick (V)">🔲 Varianten</button>
   <button class="btn" id="favBtn" title="Aktuelle Variante als Favorit merken (F)">★</button>
@@ -222,6 +227,7 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
     <div class="status" id="status">–</div>
   </section>
   <aside class="side">
+    <div id="concept" hidden><h2>Konzept</h2><div class="concept"><b id="conceptTitle"></b><div id="conceptText"></div></div></div>
     <h2>Parameter <span><button class="btn" id="midiBtn" title="MIDI-Controller: einschalten, Regler anklicken, am Controller drehen (MIDI-Learn)">🎹</button>
       <button class="btn" id="shuffleParams" title="Alle Regler würfeln">✨</button>
       <button class="btn" id="resetParams">Standard</button></span></h2>
@@ -309,6 +315,8 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
       <input type="number" id="penWidth" min="0.05" max="3" step="0.05" value="0.45"></div>
     <label class="check" title="Linien, die von später gezeichneten Flächen verdeckt sind, werden nicht geplottet (3D, überlappende Formen)">
       <input type="checkbox" id="hiddenLines"> Verdeckte Linien entfernen</label>
+    <button class="btn" id="expHtml" style="width:100%;justify-content:center;margin-bottom:8px"
+      title="Eigenständige Web-Seite mit Seed-Navigation und Reglern – zum Teilen (Python läuft im Browser)">🌐 Als Web-Seite teilen</button>
     <h2 class="desktop-only">Ordner</h2>
     <p class="empty desktop-only" id="folders"></p>
   </aside>
@@ -488,6 +496,7 @@ async function runNow() {
     $("sheet").classList.remove("stale");
     updatePngScales();
     loadAudio(res.audio);
+    updateConcept(getCode());
     if (res.animated) {
       startAnimation(res);
       if (live.on) { stopAnimation(false); setPlaying(false); live.restart = true; }
@@ -868,6 +877,14 @@ $("expPlot").onclick = async () => {
 };
 
 $("hiddenLines").onchange = () => { state.hiddenTouched = true; };
+$("expHtml").onclick = async () => {
+  try {
+    const p = { ...paramsWithKeys() }; delete p.__keys__; delete p.__input__;
+    const r = await backend.call("viewer_html", { source: getCode(), params: p, seed: state.seed });
+    await deliver(new Blob([r.html], { type: "text/html" }), fileName("html"));
+    toast("Web-Seite gespeichert – im Browser öffnen oder weitergeben (braucht beim Öffnen Internet für Python)", 4500);
+  } catch (e) { toast("Fehler: " + e.message); }
+};
 $("exp3d").onclick = async (ev) => {
   const obj = ev.shiftKey;
   try {
@@ -1349,6 +1366,24 @@ function newSeed() { state.seed = Math.floor(Math.random() * 999999) + 1; run(0)
 $("run").onclick = () => run(0);
 $("dice").onclick = newSeed;
 $("seed").onchange = () => { state.seed = parseInt($("seed").value) || 1; run(0); };
+// seed navigation like the algorithmic-art viewer: walk through the variations one by one
+function stepSeed(d) { state.seed = Math.max(1, state.seed + d); run(0); }
+$("seedPrev").onclick = () => stepSeed(-1);
+$("seedNext").onclick = () => stepSeed(1);
+document.addEventListener("keydown", (e) => {
+  if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+    e.preventDefault(); stepSeed(e.key === "ArrowLeft" ? -1 : 1);
+  }
+});
+// the sketch's docstring is its concept: first line = title, rest = philosophy
+function updateConcept(src) {
+  const m = /^\s*(?:#[^\n]*\n\s*)*(?:"""|\'\'\')([\s\S]*?)(?:"""|\'\'\')/.exec(src);
+  const lines = m ? m[1].trim().split("\n") : [];
+  const text = lines.slice(1).join("\n").trim();
+  $("concept").hidden = !text;
+  $("conceptTitle").textContent = lines[0] || "";
+  $("conceptText").innerHTML = text.split(/\n\s*\n/).map(p => `<p>${esc(p.trim())}</p>`).join("");
+}
 $("live").onclick = () => { state.live = !state.live; $("live").classList.toggle("on", state.live); persist(); };
 $("resetParams").onclick = () => { state.params = {}; state.specSig = null; run(0); };
 $("shuffleParams").onclick = () => {

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plotart"
-version = "1.6.0"
+version = "1.8.0"
 description = "Generative Kunst mit Python – p5-ähnliche Skizzen-Sprache, Live-Studio, SVG/PNG/Plotter-Export"
 requires-python = ">=3.10"
 readme = "README.md"
@@ -12,7 +12,8 @@ dependencies = []
 
 [project.optional-dependencies]
 png = ["Pillow"]
-full = ["Pillow", "numpy", "imageio-ffmpeg"]
+full = ["Pillow", "numpy", "imageio-ffmpeg", "shapely"]
+geometry = ["shapely"]
 video = ["Pillow", "imageio-ffmpeg"]
 
 [project.scripts]
