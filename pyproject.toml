@@ -12,7 +12,8 @@ dependencies = []
 
 [project.optional-dependencies]
 png = ["Pillow"]
-full = ["Pillow", "numpy"]
+full = ["Pillow", "numpy", "imageio-ffmpeg"]
+video = ["Pillow", "imageio-ffmpeg"]
 
 [project.scripts]
 plotart = "plotart.cli:main"

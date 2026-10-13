@@ -66,7 +66,7 @@ def build_namespace(sk: Sketch) -> dict:
     ns.update(CONSTANTS)
     ns.update({"math": math, "Color": Color, "Gradient": Gradient,
                "width": int(sk.width), "height": int(sk.height), "seed": sk.seed,
-               "frame_count": 0, "t": 0.0})
+               "frame_count": 1, "t": 0.0, "time": 0.0, "frames": sk.anim_frames, "fps": sk.anim_fps})
     return ns
 
 
@@ -101,13 +101,13 @@ def _error_info(exc: BaseException) -> dict:
     return {"message": f"{type(exc).__name__}: {exc}", "line": line, "trace": trace}
 
 
-def execute(source: str, params: dict | None = None, seed: int = 1, frame: int = 0,
-            frames: int = 1) -> tuple[Sketch, str, dict | None, float]:
-    """Run a sketch. Returns (sketch, printed output, error or None, milliseconds)."""
+def execute(source: str, params: dict | None = None, seed: int = 1) -> tuple[Sketch, str, dict | None, float]:
+    """Run a sketch once (setup + first draw). Returns (sketch, output, error or None, ms).
+
+    For animated sketches this is the first frame; see animation.Animation for all frames.
+    """
     sk = Sketch(seed, params)
     ns = build_namespace(sk)
-    ns["frame_count"] = frame
-    ns["t"] = frame / max(1, frames)
     sk.ns = ns
     _seed_libraries(sk.seed, source)
     buf = io.StringIO()
@@ -120,6 +120,9 @@ def execute(source: str, params: dict | None = None, seed: int = 1, frame: int =
             for hook in ("setup", "draw"):
                 fn = ns.get(hook)
                 if callable(fn):
+                    if hook == "draw":                 # like p5: fresh transform per frame
+                        sk.reset_matrix()
+                        sk._stack.clear()
                     fn()
             if sk._shape is not None:
                 sk.end_shape()
@@ -147,6 +150,9 @@ def run_sketch(source: str, params: dict | None = None, seed: int = 1) -> dict:
         "unit": sk.unit,
         "items": len(sk.items),
         "ms": round(ms, 1),
+        "animated": callable((sk.ns or {}).get("draw")) and sk.looping,
+        "frames": sk.anim_frames,
+        "fps": sk.anim_fps,
     }
 
 
@@ -174,6 +180,11 @@ def api_reference() -> list[dict]:
         {"name": "width", "sig": "", "doc": "Breite der Leinwand"},
         {"name": "height", "sig": "", "doc": "Höhe der Leinwand"},
         {"name": "seed", "sig": "", "doc": "aktueller Zufalls-Seed"},
+        {"name": "frame_count", "sig": "", "doc": "Nummer des aktuellen Bildes (1, 2, 3 …)"},
+        {"name": "t", "sig": "", "doc": "Fortschritt der Animation 0 … 1 (perfekt für Loops)"},
+        {"name": "time", "sig": "", "doc": "Zeit in Sekunden seit Beginn"},
+        {"name": "frames", "sig": "", "doc": "Anzahl Bilder der Animation"},
+        {"name": "fps", "sig": "", "doc": "Bilder pro Sekunde"},
     ]
     return [{"category": c, "entries": sorted(e, key=lambda x: x["name"])} for c, e in groups.items() if e]
 

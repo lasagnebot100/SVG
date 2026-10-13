@@ -18,7 +18,7 @@ from .png import to_png
 IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
 CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Transformation",
-              "Text & Bild", "Zufall & Noise", "Mathe", "Parameter", "Werkzeuge"]
+              "Text & Bild", "Animation", "Zufall & Noise", "Mathe", "Parameter", "Werkzeuge"]
 
 
 def api(category: str):
@@ -103,6 +103,10 @@ class Sketch:
         self._param_values = param_values or {}
         self.param_specs: list[Param] = []
         self.ns: dict | None = None          # namespace of the running sketch
+        # animation settings (used when the sketch defines draw())
+        self.anim_frames = 120
+        self.anim_fps = 30.0
+        self.looping = True
 
     # ------------------------------------------------------------------ helpers
     def _c(self, args):
@@ -540,6 +544,42 @@ class Sketch:
         elif w is None:
             w = h * iw / ih
         self._add("image", {"png": data, "x": x, "y": y, "w": w, "h": h, "smooth": smooth})
+
+    # ------------------------------------------------------------------ animation
+    @api("Animation")
+    def animation(self, frames=None, fps=None):
+        """Länge und Tempo der Animation: animation(frames=240, fps=30). Gilt, wenn draw() definiert ist."""
+        if frames is not None:
+            self.anim_frames = max(1, int(frames))
+        if fps is not None:
+            self.anim_fps = max(1.0, float(fps))
+        self._update_ns(frames=self.anim_frames, fps=self.anim_fps)
+
+    @api("Animation")
+    def frame_rate(self, fps):
+        """Bilder pro Sekunde (Standard 30)."""
+        self.animation(fps=fps)
+
+    @api("Animation")
+    def duration(self, seconds):
+        """Länge in Sekunden (setzt frames = Sekunden × fps)."""
+        self.animation(frames=round(float(seconds) * self.anim_fps))
+
+    @api("Animation")
+    def no_loop(self):
+        """draw() nur einmal ausführen – die Skizze ist dann ein Standbild."""
+        self.looping = False
+
+    @api("Animation")
+    def loop(self):
+        """draw() wieder für jedes Bild ausführen (Standard)."""
+        self.looping = True
+
+    @api("Animation")
+    def loop_noise(self, x, y, t, speed=1.0):
+        """Noise, das sich bei t = 1 nahtlos wiederholt – ideal für Endlos-Loops (t = 0 … 1)."""
+        t = t % 1.0
+        return (1 - t) * self.noise(x, y, t * speed) + t * self.noise(x, y, (t - 1) * speed)
 
     # ------------------------------------------------------------------ randomness
     @api("Zufall & Noise")

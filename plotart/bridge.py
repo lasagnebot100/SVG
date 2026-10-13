@@ -76,6 +76,57 @@ def sketch_reference(req: dict) -> dict:
     return {"reference": api_reference()}
 
 
+# The running animation is kept between calls, so the editor can stream frames chunk by
+# chunk. Asking for an earlier frame (or other code/params/seed) restarts it.
+_ANIM: dict = {"key": None, "anim": None}
+
+
+def anim_frames(req: dict) -> dict:
+    import time
+    from .sketch.animation import Animation
+
+    source, params, seed = req.get("source", ""), req.get("params") or {}, int(req.get("seed") or 1)
+    start = int(req.get("start") or 0)
+    count = max(1, int(req.get("count") or 10))
+    budget = float(req.get("budget_ms") or 400) / 1000
+    key = (source, json.dumps(params, sort_keys=True), seed)
+    anim = _ANIM["anim"]
+    if anim is None or _ANIM["key"] != key or anim.frame > start:
+        anim = Animation(source, params, seed)
+        _ANIM.update(key=key, anim=anim)
+    anim.skip_to(start)
+    out, logs, err = [], [], anim.error
+    t0 = time.perf_counter()
+    while len(out) < count and not anim.done:
+        fr = anim.next_frame()
+        if fr is None:
+            break
+        if fr.log:
+            logs.append(fr.log)
+        if fr.error:
+            err = fr.error
+            break
+        out.append({"svg": anim.frame_svg(fr), "clears": fr.clears, "ms": round(fr.ms, 1)})
+        if time.perf_counter() - t0 > budget:
+            break
+    return {"start": start, "frames": out, "next": anim.frame, "total": anim.total, "fps": anim.fps,
+            "animated": anim.animated, "done": anim.done, "log": "".join(logs)[-20000:],
+            "sketch_error": err}
+
+
+def sketch_export(req: dict) -> dict:
+    """Render a whole animation to a file (used by the CLI-less desktop export jobs)."""
+    from .sketch.video import export_animation
+    return export_animation(req["source"], req["out_path"], req.get("format", "mp4"),
+                            req.get("params"), int(req.get("seed") or 1), req.get("scale"),
+                            req.get("frames"), req.get("fps"))
+
+
+def export_capabilities(req: dict) -> dict:
+    from .sketch.video import FORMATS, capabilities
+    return {"formats": FORMATS, "available": capabilities()}
+
+
 COMMANDS = {
     "schema": lambda req: schema(),
     "render": render_response,
@@ -85,9 +136,11 @@ COMMANDS = {
     "sketch_png": sketch_png,
     "sketch_examples": sketch_examples,
     "sketch_reference": sketch_reference,
+    "anim_frames": anim_frames,
+    "export_capabilities": export_capabilities,
 }
 # commands that execute user code (the server runs them in a separate process)
-USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png"}
+USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames"}
 
 
 def dispatch(cmd: str, req: dict) -> dict:

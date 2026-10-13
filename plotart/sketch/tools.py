@@ -54,6 +54,47 @@ def ease_in_out(t):
     return 0.5 - 0.5 * math.cos(math.pi * constrain(t, 0.0, 1.0))
 
 
+@tool("Animation")
+def ping_pong(t):
+    """0 → 1 → 0 über t = 0 … 1 (hin und zurück)."""
+    t = t % 1.0
+    return 1 - abs(2 * t - 1)
+
+
+@tool("Animation")
+def ease_in(t, power=3):
+    """Langsam starten (t = 0 … 1)."""
+    return constrain(t, 0.0, 1.0) ** power
+
+
+@tool("Animation")
+def ease_out(t, power=3):
+    """Langsam auslaufen (t = 0 … 1)."""
+    return 1 - (1 - constrain(t, 0.0, 1.0)) ** power
+
+
+@tool("Animation")
+def ease_in_out_cubic(t):
+    """Kubisches Ein- und Ausblenden (t = 0 … 1)."""
+    t = constrain(t, 0.0, 1.0)
+    return 4 * t * t * t if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
+
+
+@tool("Animation")
+def ease_out_elastic(t):
+    """Federnd auslaufen (t = 0 … 1)."""
+    t = constrain(t, 0.0, 1.0)
+    if t in (0.0, 1.0):
+        return t
+    return 2 ** (-10 * t) * math.sin((t * 10 - 0.75) * (2 * math.pi / 3)) + 1
+
+
+@tool("Animation")
+def wave(t, cycles=1.0, phase=0.0):
+    """Weiche Schwingung 0 … 1 … 0 (Kosinus), nahtlos bei ganzen cycles."""
+    return 0.5 - 0.5 * math.cos(math.tau * (t * cycles + phase))
+
+
 @tool("Mathe")
 def radians(deg):
     """Grad → Bogenmaß."""

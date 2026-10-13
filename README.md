@@ -1,6 +1,6 @@
 # plotart – generative Kunst mit Python
 
-Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen. Du schreibst Skizzen in einer Sprache **im Stil von p5.js/Processing** und siehst das Ergebnis sofort. Ausgabe als **PNG, SVG oder plotterfertige Linien**. Läuft am Computer und im Browser, auch am iPad.
+Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen. Du schreibst Skizzen in einer Sprache **im Stil von p5.js/Processing** und siehst das Ergebnis sofort. Standbilder oder **Animationen**, Ausgabe als **PNG, SVG, MP4, GIF oder plotterfertige Linien**. Gemacht für den Computer, läuft aber auch im Browser und am iPad.
 
 ![Skizzen-Beispiele](examples/skizzen.jpg)
 
@@ -12,8 +12,11 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Volle Python-Power:** numpy, scipy, Pillow und jede andere installierte Bibliothek; Rasterbilder per `image(array)`
 - **Farbe ernst genommen:** Transparenz, HSB, Verläufe (linear/radial), Mischmodi (Multiply, Screen, …), 16 kuratierte Paletten
 - **Werkzeugkasten für generative Kunst:** Voronoi, Poisson-Disc, Lloyd-Relaxation, Chaikin-Glättung, Schraffur, Vektoren
-- **Exporte:** Farb-SVG, PNG in jeder Auflösung (z. B. 300 dpi), **Plotter-SVG** (optimierte Linien, eine Ebene pro Farbe), Skizze als `.py`
-- **12 Beispiel-Skizzen** zum Lernen und Weiterbauen
+- **Animation wie in p5.js:** `setup()` und `draw()`, Zustand über Bilder hinweg, Spuren durch halbtransparenten Hintergrund, `t` für nahtlose Loops, Easing-Funktionen
+- **Zeitleiste im Studio:** Abspielen, Spulen, Bild für Bild, Geschwindigkeit
+- **Exporte:** Farb-SVG, PNG in jeder Auflösung (z. B. 300 dpi), **MP4, WebM, GIF, PNG-Sequenz**, **Plotter-SVG** (optimierte Linien, eine Ebene pro Farbe)
+- **Desktop-Arbeitsweise:** Skizzen im Ordner `skizzen/`, Speichern mit Strg+S; bearbeitest du die Datei in VS Code o. Ä., aktualisiert sich das Studio automatisch
+- **17 Beispiel-Skizzen** zum Lernen und Weiterbauen, davon 5 Animationen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -30,7 +33,7 @@ Das **Studio** öffnet sich unter `http://localhost:8765`.
 2. **🎲** würfelt einen neuen Seed, **✨** würfelt alle Regler.
 3. Exportieren über **SVG**, **PNG** oder **Plotter**; **💾 .py** speichert die Skizze.
 
-Optional: `pip install -e ".[full]"` installiert Pillow und numpy und den Befehl `plotart`.
+Optional: `pip install -e ".[full]"` installiert Pillow, numpy und imageio-ffmpeg (für Videos) sowie den Befehl `plotart`.
 
 ![Studio](examples/studio.jpg)
 
@@ -50,6 +53,63 @@ for i in range(anzahl):
 ```
 
 Optional kannst du `setup()` und `draw()` definieren wie in p5.js; beide werden einmal aufgerufen.
+
+## Animation
+
+![Animation](examples/animation.gif)
+
+Sobald eine Skizze `draw()` definiert, wird sie zur Animation. `draw()` läuft dann für jedes Bild.
+
+```python
+size(800, 800)
+animation(frames=180, fps=30)          # 6 Sekunden
+
+def draw():
+    background("#0f1020")              # jedes Bild frisch – ohne background() malt es weiter
+    no_stroke()
+    for i in range(12):
+        a = TAU * (t + i / 12)         # t läuft von 0 bis 1 → nahtloser Loop
+        fill(hsb(i * 30, 70, 100))
+        circle(width / 2 + cos(a) * 250, height / 2 + sin(a) * 250, 60)
+```
+
+| Was | Wie |
+|---|---|
+| Länge & Tempo | `animation(frames=240, fps=30)` · `duration(8)` (Sekunden) · `frame_rate(24)` |
+| Zeit | `t` (0 … 1 über die ganze Animation) · `frame_count` (1, 2, 3 …) · `time` (Sekunden) · `frames`, `fps` |
+| Zustand | Variablen in `setup()` anlegen, in `draw()` verändern (mit `global` für einfache Werte) |
+| Spuren | `background(0, 20)` – halbtransparent, ältere Bilder verblassen langsam |
+| Wachsende Bilder | kein `background()` in `draw()` – jedes Bild malt auf das vorige weiter |
+| Nahtlose Loops | alles nur von `t` abhängig machen · `loop_noise(x, y, t)` · `wave(t, cycles)` · `ping_pong(t)` |
+| Easing | `ease_in()` · `ease_out()` · `ease_in_out()` · `ease_in_out_cubic()` · `ease_out_elastic()` |
+| Standbild trotz `draw()` | `no_loop()` |
+
+Wie in p5.js werden Transformationen vor jedem Bild zurückgesetzt, Farben und Stile bleiben erhalten.
+
+**Im Studio:**
+- Unter der Vorschau erscheint eine **Zeitleiste**: ▶/⏸ mit der Leertaste, Spulen mit dem Regler, ← → für einzelne Bilder.
+- **Rechts unter „Animation exportieren“** wählst du Format (MP4, WebM, GIF, PNG-Sequenz), Auflösung, Bildanzahl und fps.
+- Der Export läuft im Hintergrund mit Fortschrittsbalken und landet im Ordner `output/`.
+
+MP4 und WebM brauchen **ffmpeg**: entweder installieren (https://ffmpeg.org/download.html) oder `pip install imageio-ffmpeg`. GIF und PNG-Sequenz funktionieren auch ohne ffmpeg.
+
+## Am Computer arbeiten
+
+- **Skizzen-Ordner:** Oben links unter **„📁 Meine Skizzen“** liegen deine Dateien aus `./skizzen/` (anderer Ordner: `python3 -m plotart --ordner pfad`). Dort gibt es auch „Neue Skizze“, „Neue Animation“ und „Speichern unter“.
+- **Speichern:** **Strg/⌘ + S** speichert, **Umschalt + Strg/⌘ + S** speichert unter neuem Namen. Ein ● zeigt ungespeicherte Änderungen.
+- **Eigener Editor:** Öffne die `.py`-Datei zusätzlich in VS Code, PyCharm & Co. Jede Änderung, die du dort speicherst, erscheint sofort im Studio.
+- **Sicherheit:** Skizzen laufen in einem eigenen Prozess. Endlosschleifen werden nach 30 s abgebrochen (`--timeout`).
+
+| Kürzel | Funktion |
+|---|---|
+| Strg/⌘ + Enter | Ausführen |
+| Strg/⌘ + Umschalt + Enter | Neuer Seed |
+| Strg/⌘ + S / + Umschalt | Speichern / Speichern unter |
+| Strg/⌘ + O | Skizzen-Liste öffnen |
+| Strg/⌘ + / | Zeile auskommentieren |
+| Strg + Leertaste | Autovervollständigung |
+| Leertaste · ← → · Pos1 | Animation: Play/Pause · Bild zurück/vor · zum Anfang |
+| F1 | Hilfe |
 
 ## Die Skizzen-Sprache – Spickzettel
 
@@ -84,6 +144,11 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 10 | Reaktion-Diffusion | numpy-Simulation (Gray-Scott), Turing-Muster |
 | 11 | Wellenlinien | Verdeckung durch Füllung (Unknown Pleasures) |
 | 12 | Typografie | Text, Drehung, Noise-gesteuerte Größe |
+| 13 | Animation: Loop-Kreise | Nahtloser Loop über `t`, `wave()` |
+| 14 | Animation: Partikel-Spuren | Zustand in `setup()`/`draw()`, Spuren durch halbtransparenten Hintergrund |
+| 15 | Animation: Wellen-Loop | `loop_noise()` für organische, nahtlose Bewegung |
+| 16 | Animation: Wachsendes Bild | Ohne `background()` – die Zeichnung entsteht Strich für Strich |
+| 17 | Animation: Kinetische Typografie | Easing, `ping_pong()`, Versatz pro Zeile |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -94,6 +159,9 @@ Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, od
 | **SVG** | Vektorgrafik mit Farben, Verläufen, Transparenz | Für Illustrator, Inkscape, Web |
 | **PNG** | Rasterbild in wählbarer Auflösung | Bei `size("A3")` z. B. 300 dpi für den Druck |
 | **Plotter** | Nur Linien in mm, optimiert, eine Ebene pro Farbe | Für AxiDraw, iDraw, vpype; Flächen werden als Umriss gezeichnet |
+| **MP4 / WebM** | Video der Animation | braucht ffmpeg |
+| **GIF** | Animation als GIF (Endlosschleife) | mit ffmpeg optimierte Farbpalette, sonst Pillow |
+| **PNG-Sequenz** | Jedes Bild als PNG mit Transparenz, als ZIP | Zum Weiterbearbeiten in After Effects, Blender & Co. |
 | **.py** | Die Skizze selbst | Mit 📂 wieder öffnen |
 
 Überlappende Flächen werden beim Plotter-Export nicht ausgeblendet, weil ein Plotter alles zeichnet. Für Verdeckung (wie in Beispiel 11) eignen sich die fertigen Generatoren besser.
@@ -106,6 +174,9 @@ python3 -m plotart sketch meine_skizze.py --png      # Skizze → output/meine_s
 python3 -m plotart sketch 03 -s 42 -n 5 --png        # Beispiel 03, Seeds 42–46
 python3 -m plotart sketch 06 -p "Zellgröße=30" --plotter --pen 0.3
 python3 -m plotart sketch 05 -o druck.png --scale 23.6   # 600 dpi (Pixel pro mm)
+python3 -m plotart sketch 14 --mp4 --gif             # Animation → output/14_partikel_spuren_1.mp4 + .gif
+python3 -m plotart sketch anim.py --mp4 --frames 600 --fps 60 --scale 2   # 10 s, 60 fps, doppelte Auflösung
+python3 -m plotart sketch anim.py --png-seq          # alle Bilder als PNG (ZIP)
 python3 -m plotart studio --host 0.0.0.0             # im WLAN erreichbar (mit Zugangs-Token)
 ```
 
@@ -183,17 +254,20 @@ def generate(d, rng, noise, p):
 ```
 plotart/
 ├── sketch/            Skizzen-Sprache (p5-ähnliche API), Renderer, Exporte, Beispiele
+│   ├── animation.py   Bild-für-Bild-Ausführung (setup/draw)
+│   └── video.py       MP4/WebM/GIF/PNG-Sequenz-Export
 ├── generators/        fertige Plotter-Generatoren
 ├── static/            Studio, Generator-Seite, Code-Editor (CodeMirror 5, MIT)
 ├── bridge.py          gemeinsame Schnittstelle für Server, Worker-Prozess und Browser
-├── web.py             lokaler Server (Skizzen laufen in eigenem Prozess mit Zeitlimit)
+├── web.py             lokaler Server (Skizzen in eigenem Prozess mit Zeitlimit, Export-Jobs)
+├── sketchfiles.py     Skizzen-Ordner (Speichern/Laden)
 └── cli.py             Kommandozeile
 tools/build_web.py     baut die Browser-Version (Pyodide)
 ```
 
 ## Ausblick
 
-- **Stufe 2 – Animation:** zeitbasierte Skizzen (`frame_count`, `t`), Zeitleiste, Export als GIF/MP4/Bildsequenz
+- ~~Stufe 2 – Animation~~ ✓
 - **Stufe 3 – Blender:** Add-on, das Skizzen als Kurven, Meshes oder Grease Pencil mit Keyframes nach Blender bringt
 
 ## Tests

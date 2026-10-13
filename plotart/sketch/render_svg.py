@@ -83,13 +83,14 @@ def _path_d(subpaths, closed) -> str:
     return "".join(out)
 
 
-def render_svg(sk: Sketch, meta: dict | None = None) -> str:
+def render_svg(sk: Sketch, meta: dict | None = None, items=None) -> str:
+    """SVG of the sketch (or of `items`, e.g. one animation frame, on the sketch's canvas)."""
     w, h, unit = _fmt(sk.width), _fmt(sk.height), sk.unit
     size_unit = "mm" if unit == "mm" else ""
     defs = _Defs()
     cache: dict = {}
     body: list[str] = []
-    for it in sk.items:
+    for it in (sk.items if items is None else items):
         d = it.data
         tr = ""
         if it.matrix is not None:

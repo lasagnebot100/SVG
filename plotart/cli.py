@@ -85,6 +85,36 @@ def _load_sketch_source(name: str) -> tuple[str, str]:
     sys.exit(f"'{name}' ist weder eine Datei noch ein eindeutiges Beispiel.\nBeispiele: {names}")
 
 
+def _export_animation_cli(source, stem, params, seed, args) -> int:
+    from .sketch.video import ExportError, export_animation
+    formats = [f for f, on in (("mp4", args.mp4), ("webm", args.webm), ("gif", args.gif),
+                               ("png", args.png_seq)) if on]
+    out_dir = args.out if not args.out.lower().endswith((".svg", ".png", ".mp4", ".gif", ".webm", ".zip")) \
+        else os.path.dirname(args.out) or "."
+    status = 0
+    for fmt in formats:
+        ext = "zip" if fmt == "png" else fmt
+        path = os.path.join(out_dir, f"{stem}_{seed}.{ext}")
+
+        def progress(i, n):
+            if sys.stdout.isatty():
+                bar = "█" * int(30 * i / n) + "░" * (30 - int(30 * i / n))
+                print(f"\r  {fmt.upper():4} {bar} {i}/{n}", end="", flush=True)
+
+        try:
+            res = export_animation(source, path, fmt, params, seed, args.scale, args.frames, args.fps,
+                                   progress=progress)
+        except ExportError as exc:
+            print(("\n" if sys.stdout.isatty() else "") + f"✗ {exc}", file=sys.stderr)
+            status = 1
+            continue
+        if sys.stdout.isatty():
+            print()
+        mb = res["bytes"] / 1048576
+        print(f"✓ {path}  –  {res['frames']} Bilder, {res['fps']:g} fps, {res['width']}×{res['height']} px, {mb:.1f} MB")
+    return status
+
+
 def _run_sketch_cmd(args) -> int:
     from .sketch import execute, render_png, render_svg, to_plotter
     from .svg import to_svg
@@ -92,8 +122,12 @@ def _run_sketch_cmd(args) -> int:
     source, stem = _load_sketch_source(args.file)
     params = _parse_sets(args.param)
     status = 0
+    animated_out = args.mp4 or args.webm or args.gif or args.png_seq
     for i in range(args.count):
         seed = args.seed + i
+        if animated_out:
+            status |= _export_animation_cli(source, stem, params, seed, args)
+            continue
         sk, log, err, ms = execute(source, params, seed)
         if log:
             print(log, end="" if log.endswith("\n") else "\n")
@@ -145,6 +179,7 @@ def main(argv=None):
                    help="0.0.0.0 = im Netzwerk erreichbar (z. B. fürs iPad, mit Zugangs-Token)")
     w.add_argument("--no-browser", action="store_true")
     w.add_argument("--timeout", type=float, default=30.0, help="Zeitlimit pro Skizze in Sekunden")
+    w.add_argument("--ordner", default="skizzen", help="Ordner für deine Skizzen (Standard: ./skizzen)")
 
     sk = sub.add_parser("sketch", help="Skizze (.py) ausführen und exportieren")
     sk.add_argument("file", help="Skizzen-Datei oder Name eines Beispiels (z. B. 03)")
@@ -157,6 +192,13 @@ def main(argv=None):
     sk.add_argument("--plotter", action="store_true", help="zusätzlich Plotter-SVG (nur Linien, optimiert)")
     sk.add_argument("--pen", type=float, default=0.45, help="Stiftbreite für --plotter (mm)")
     sk.add_argument("--no-svg", action="store_true", help="kein Farb-SVG schreiben")
+    anim = sk.add_argument_group("Animation (Skizzen mit draw())")
+    anim.add_argument("--mp4", action="store_true", help="als MP4-Video exportieren (braucht ffmpeg)")
+    anim.add_argument("--webm", action="store_true", help="als WebM-Video exportieren (braucht ffmpeg)")
+    anim.add_argument("--gif", action="store_true", help="als GIF-Animation exportieren")
+    anim.add_argument("--png-seq", action="store_true", help="alle Bilder als PNG-Sequenz (ZIP)")
+    anim.add_argument("--frames", type=int, help="Anzahl Bilder (überschreibt animation())")
+    anim.add_argument("--fps", type=float, help="Bilder pro Sekunde (überschreibt animation())")
 
     sub.add_parser("list", help="Generatoren und Parameter auflisten")
 
@@ -179,7 +221,7 @@ def main(argv=None):
         from .web import serve
         serve(host=getattr(args, "host", "127.0.0.1"), port=getattr(args, "port", 8765),
               open_browser=not getattr(args, "no_browser", False),
-              timeout=getattr(args, "timeout", 30.0))
+              timeout=getattr(args, "timeout", 30.0), sketch_dir=getattr(args, "ordner", "skizzen"))
         return
 
     if args.cmd == "sketch":

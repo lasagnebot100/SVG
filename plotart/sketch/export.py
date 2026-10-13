@@ -68,20 +68,32 @@ def _gradient_image(g: Gradient, m, S, box, Image):
     return Image.fromarray(out.round().astype("uint8"), "RGBA")
 
 
-def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> bytes:
-    from PIL import Image, ImageChops, ImageDraw, ImageFont
+class PillowCanvas:
+    """Persistent raster canvas (Pillow, 2× supersampled). draw() adds items on top of
+    what is already there – so animation frames can accumulate like in p5."""
 
-    S = scale * ss
-    size = (W * ss, H * ss)
-    img = Image.new("RGBA", size, (0, 0, 0, 0))
-    ops = {"multiply": ImageChops.multiply, "screen": ImageChops.screen,
-           "darken": ImageChops.darker, "lighten": ImageChops.lighter,
-           "difference": ImageChops.difference, "plus-lighter": ImageChops.add}
-    fonts: dict = {}
+    def __init__(self, width: float, height: float, scale: float, ss: int = 2):
+        from PIL import Image, ImageChops
+        self.width, self.height = width, height
+        self.W, self.H = max(1, round(width * scale)), max(1, round(height * scale))
+        self.ss = ss
+        self.S = scale * ss
+        self.size = (self.W * ss, self.H * ss)
+        self.img = Image.new("RGBA", self.size, (0, 0, 0, 0))
+        self.ops = {"multiply": ImageChops.multiply, "screen": ImageChops.screen,
+                    "darken": ImageChops.darker, "lighten": ImageChops.lighter,
+                    "difference": ImageChops.difference, "plus-lighter": ImageChops.add}
+        self.fonts: dict = {}
+        self._solids: dict = {}
 
-    def font(sz):
+    def clear(self):
+        from PIL import Image
+        self.img = Image.new("RGBA", self.size, (0, 0, 0, 0))
+
+    def _font(self, sz):
+        from PIL import ImageFont
         sz = max(1, int(round(sz)))
-        if sz not in fonts:
+        if sz not in self.fonts:
             f = None
             for name in ("DejaVuSans.ttf", "Arial.ttf", "Helvetica.ttc", "arial.ttf"):
                 try:
@@ -89,20 +101,12 @@ def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> byt
                     break
                 except OSError:
                     continue
-            fonts[sz] = f or ImageFont.load_default(size=sz)
-        return fonts[sz]
+            self.fonts[sz] = f or ImageFont.load_default(size=sz)
+        return self.fonts[sz]
 
-    def bbox_of(points, pad, limit):
-        xs = [p[0] for p in points]
-        ys = [p[1] for p in points]
-        x0 = max(0, int(min(xs) - pad))
-        y0 = max(0, int(min(ys) - pad))
-        x1 = min(limit[0], int(max(xs) + pad) + 1)
-        y1 = min(limit[1], int(max(ys) + pad) + 1)
-        return (x0, y0, x1, y1) if x1 > x0 and y1 > y0 else None
-
-    def draw_item(target, it, subs, ox, oy):
+    def _draw_item(self, target, it, subs, ox, oy):
         """Draw one item onto `target`, whose top-left corner sits at (ox, oy) in the full image."""
+        from PIL import Image, ImageChops, ImageDraw
         st, m = it.style, it.matrix or IDENTITY
         tsize = target.size
         draw = ImageDraw.Draw(target, "RGBA")
@@ -111,9 +115,9 @@ def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> byt
             pic = Image.open(io.BytesIO(d["png"])).convert("RGBA")
             x, y = mat_apply(m, d["x"], d["y"])
             ms = _scale_of(m)
-            w, h = max(1, round(d["w"] * ms * S)), max(1, round(d["h"] * ms * S))
+            w, h = max(1, round(d["w"] * ms * self.S)), max(1, round(d["h"] * ms * self.S))
             pic = pic.resize((w, h), Image.LANCZOS if d["smooth"] else Image.NEAREST)
-            _paste_clipped(target, pic, round(x * S) - ox, round(y * S) - oy)
+            _paste_clipped(target, pic, round(x * self.S) - ox, round(y * self.S) - oy)
             return
         if it.kind == "text":
             d = it.data
@@ -123,10 +127,10 @@ def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> byt
             paint = st.fill.average() if isinstance(st.fill, Gradient) else st.fill
             if paint is None:
                 return
-            fnt = font(st.text_size * _scale_of(m) * S)
+            fnt = self._font(st.text_size * _scale_of(m) * self.S)
             angle = math.degrees(math.atan2(m[1], m[0]))
             if abs(angle) < 0.05:
-                draw.text((x * S - ox, y * S - oy), d["s"], fill=_rgba(paint), font=fnt, anchor=anchor)
+                draw.text((x * self.S - ox, y * self.S - oy), d["s"], fill=_rgba(paint), font=fnt, anchor=anchor)
                 return
             # rotated text: draw on a tile centred on the anchor, rotate, composite
             l, t, r, b = fnt.getbbox(d["s"], anchor=anchor)
@@ -134,14 +138,14 @@ def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> byt
             tile = Image.new("RGBA", (2 * half, 2 * half), (0, 0, 0, 0))
             ImageDraw.Draw(tile).text((half, half), d["s"], fill=_rgba(paint), font=fnt, anchor=anchor)
             tile = tile.rotate(-angle, resample=Image.BICUBIC, center=(half, half))
-            _paste_clipped(target, tile, round(x * S) - ox - half, round(y * S) - oy - half)
+            _paste_clipped(target, tile, round(x * self.S) - ox - half, round(y * self.S) - oy - half)
             return
         subs = [([(x - ox, y - oy) for x, y in pts], closed) for pts, closed in subs]
         if st.fill is not None:
             polys = [p for p, _ in subs if len(p) >= 3]   # open paths are filled too (like p5)
             if polys:
                 if isinstance(st.fill, Gradient) or len(polys) > 1:
-                    pb = bbox_of([pt for p in polys for pt in p], 1, tsize)
+                    pb = _bbox_of([pt for p in polys for pt in p], 1, tsize)
                     if pb:
                         msize = (pb[2] - pb[0], pb[3] - pb[1])
                         mask = Image.new("1", msize, 0)
@@ -152,7 +156,7 @@ def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> byt
                         mask = mask.convert("L")
                         if isinstance(st.fill, Gradient):
                             absbox = (pb[0] + ox, pb[1] + oy, pb[2] + ox, pb[3] + oy)
-                            fill_img = _gradient_image(st.fill, it.matrix or IDENTITY, S, absbox, Image)
+                            fill_img = _gradient_image(st.fill, it.matrix or IDENTITY, self.S, absbox, Image)
                         else:
                             fill_img = Image.new("RGBA", msize, _rgba(st.fill))
                         fill_img.putalpha(ImageChops.multiply(fill_img.getchannel("A"), mask))
@@ -161,7 +165,7 @@ def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> byt
                     draw.polygon(polys[0], fill=_rgba(st.fill))
         if st.stroke is not None and st.weight > 0:
             paint = st.stroke.average() if isinstance(st.stroke, Gradient) else st.stroke
-            width = max(1, round(st.weight * _scale_of(m) * S))
+            width = max(1, round(st.weight * _scale_of(m) * self.S))
             col = _rgba(paint)
             for pts, closed in subs:
                 line = pts + [pts[0]] if closed else pts
@@ -173,37 +177,128 @@ def _render_pillow(sk: Sketch, scale: float, W: int, H: int, ss: int = 2) -> byt
                     for px, py in (line[0], line[-1]):
                         draw.ellipse((px - r, py - r, px + r, py + r), fill=col)
 
-    for it in sk.items:
-        st = it.style
-        m = it.matrix or IDENTITY
-        subs = None
-        if it.kind not in ("image", "text"):
-            subs = flatten(it, sk.width, sk.height, tol=0.3, scale=S)
-            if not subs:
+    def draw(self, items):
+        from PIL import Image
+        img, S, size = self.img, self.S, self.size
+        for it in items:
+            st = it.style
+            m = it.matrix or IDENTITY
+            if it.kind == "background" and isinstance(st.fill, Color) and st.blend in ("normal", "blend"):
+                # fast path, e.g. background(0, 20) for trails: one composite of a cached solid
+                rgba = st.fill.rgba
+                if rgba[3] >= 255:
+                    img.paste(rgba, (0, 0, *size))
+                elif rgba[3] > 0:
+                    solid = self._solids.get(rgba)
+                    if solid is None:
+                        solid = self._solids[rgba] = Image.new("RGBA", size, rgba)
+                    img.alpha_composite(solid)
                 continue
-        op = ops.get(st.blend)
-        if not op:
-            draw_item(img, it, subs, 0, 0)
-            continue
-        # blend modes: mix only the item's bounding box with what is below
-        if subs is not None:
-            pad = (st.weight * _scale_of(m) * S if st.stroke is not None else 0) + 2
-            box = bbox_of([pt for pts, _ in subs for pt in pts], pad, size)
-        else:
-            box = (0, 0, *size)
-        if box is None:
-            continue
-        layer = Image.new("RGBA", (box[2] - box[0], box[3] - box[1]), (0, 0, 0, 0))
-        draw_item(layer, it, subs, box[0], box[1])
-        region = img.crop(box)
-        mixed = op(region.convert("RGB"), layer.convert("RGB")).convert("RGBA")
-        mixed.putalpha(layer.getchannel("A"))
-        region.alpha_composite(mixed)
-        img.paste(region, box[:2])
+            subs = None
+            if it.kind not in ("image", "text"):
+                subs = flatten(it, self.width, self.height, tol=0.3, scale=S)
+                if not subs:
+                    continue
+            op = self.ops.get(st.blend)
+            if not op and not _translucent(it):
+                self._draw_item(img, it, subs, 0, 0)     # opaque: direct drawing is exact
+                continue
+            # blend modes and transparency: draw the item on its own layer (only its bounding
+            # box), then mix/composite it with what is below. Pillow's ImageDraw would
+            # *replace* RGBA pixels instead of blending them.
+            if subs is not None:
+                pad = (st.weight * _scale_of(m) * S if st.stroke is not None else 0) + 2
+                box = _bbox_of([pt for pts, _ in subs for pt in pts], pad, size)
+            else:
+                box = (0, 0, *size)
+            if box is None:
+                continue
+            layer = Image.new("RGBA", (box[2] - box[0], box[3] - box[1]), (0, 0, 0, 0))
+            self._draw_item(layer, it, subs, box[0], box[1])
+            region = img.crop(box)
+            if op:
+                mixed = op(region.convert("RGB"), layer.convert("RGB")).convert("RGBA")
+                mixed.putalpha(layer.getchannel("A"))
+                region.alpha_composite(mixed)
+            else:
+                region.alpha_composite(layer)
+            img.paste(region, box[:2])
 
-    img = img.resize((W, H), Image.LANCZOS)
+    def image(self):
+        """Current canvas at output resolution (RGBA).
+
+        Box-averaging the 2× supersampled canvas is the classic anti-aliasing filter and
+        ~15× faster than Lanczos – it matters for animations (one call per frame).
+        """
+        from PIL import Image
+        img = self.img.reduce(self.ss) if self.ss > 1 else self.img
+        if img.size != (self.W, self.H):
+            img = img.resize((self.W, self.H), Image.BILINEAR)
+        return img
+
+
+class CairoCanvas:
+    """Same interface as PillowCanvas, rendering each batch exactly via cairosvg."""
+
+    def __init__(self, sk: Sketch, scale: float):
+        from PIL import Image
+        self.sk = sk
+        self.W, self.H = max(1, round(sk.width * scale)), max(1, round(sk.height * scale))
+        self.img = Image.new("RGBA", (self.W, self.H), (0, 0, 0, 0))
+
+    def clear(self):
+        from PIL import Image
+        self.img = Image.new("RGBA", (self.W, self.H), (0, 0, 0, 0))
+
+    def draw(self, items):
+        import cairosvg
+        from PIL import Image
+        png = cairosvg.svg2png(bytestring=render_svg(self.sk, items=items).encode(),
+                               output_width=self.W, output_height=self.H)
+        self.img.alpha_composite(Image.open(io.BytesIO(png)).convert("RGBA"))
+
+    def image(self):
+        return self.img.copy()
+
+
+def make_canvas(sk: Sketch, scale: float, engine: str = "auto"):
+    """Raster canvas for a sketch: cairosvg (exact) if available, else Pillow."""
+    if engine in ("auto", "cairo"):
+        try:
+            import cairosvg  # noqa: F401
+            return CairoCanvas(sk, scale)
+        except ImportError:
+            if engine == "cairo":
+                raise
+    return PillowCanvas(sk.width, sk.height, scale)
+
+
+def _translucent(it) -> bool:
+    """True if the item paints with partial alpha (needs real compositing)."""
+    st = it.style
+    if it.kind == "image":
+        return False                      # images are already alpha-composited
+    for paint in (st.fill, st.stroke):
+        if isinstance(paint, Color) and paint.a < 0.999:
+            return True
+    return False
+
+
+def _bbox_of(points, pad, limit):
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    x0 = max(0, int(min(xs) - pad))
+    y0 = max(0, int(min(ys) - pad))
+    x1 = min(limit[0], int(max(xs) + pad) + 1)
+    y1 = min(limit[1], int(max(ys) + pad) + 1)
+    return (x0, y0, x1, y1) if x1 > x0 and y1 > y0 else None
+
+
+def _render_pillow(sk: Sketch, scale: float, W: int, H: int) -> bytes:
+    canvas = PillowCanvas(sk.width, sk.height, scale)
+    canvas.draw(sk.items)
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    canvas.image().save(buf, format="PNG")
     return buf.getvalue()
 
 

@@ -19,9 +19,9 @@
   html, body { height: 100%; }
   body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink);
          background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
-  header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel);
+  header { display: flex; align-items: center; gap: 7px; padding: 8px 12px; background: var(--panel);
            border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0 8px 0 2px; white-space: nowrap; }
+  header h1 { font-size: 16px; margin: 0 6px 0 2px; white-space: nowrap; }
   header h1 span { color: var(--muted); font-weight: 500; }
   .sep { width: 1px; height: 24px; background: var(--line); margin: 0 2px; }
   .grow { flex: 1; }
@@ -29,13 +29,18 @@
          font: inherit; white-space: nowrap; color: var(--ink); text-decoration: none; display: inline-flex;
          align-items: center; gap: 5px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   .btn:hover { border-color: #c9c8c2; }
+  .btn:disabled { opacity: .45; cursor: default; }
   .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   select, input[type=number], input[type=text], input[type=search] { padding: 6px 8px; border: 1px solid var(--line);
          border-radius: 7px; font: inherit; background: #fff; color: var(--ink); }
   #seed { width: 92px; }
-  #examples { max-width: 210px; }
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 1fr) minmax(320px, 1.15fr) 270px; }
+  #examples { max-width: 190px; }
+  #files { max-width: 170px; }
+  .filename { font-size: 12.5px; color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .filename b { color: var(--ink); font-weight: 600; }
+  .filename .dirty { color: #c75a00; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 1fr) minmax(320px, 1.15fr) 280px; }
   .col { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
   .editor-col { border-right: 1px solid var(--line); background: var(--code-bg); }
   #editorWrap { flex: 1; min-height: 0; position: relative; }
@@ -48,19 +53,30 @@
   .cm-s-default .cm-string { color: #50a14f; } .cm-s-default .cm-number { color: #c75a00; }
   .cm-s-default .cm-comment { color: #9a9a9a; font-style: italic; } .cm-s-default .cm-builtin { color: #0184bc; }
   .cm-s-default .cm-variable-2 { color: #986801; }
-  #console { height: 170px; border-top: 1px solid var(--line); background: #fff; overflow: auto; padding: 8px 12px;
+  #console { height: 160px; border-top: 1px solid var(--line); background: #fff; overflow: auto; padding: 8px 12px;
              font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; flex: none; }
   #console .err { color: var(--err); } #console .ok { color: var(--ok); } #console .muted { color: var(--muted); }
   .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 22px; position: relative; }
-  .sheet { background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 12px 40px rgba(0,0,0,.12); display: flex; }
-  .sheet svg { width: 100%; height: 100%; display: block; }
+  .sheet { background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 12px 40px rgba(0,0,0,.12); display: flex; position: relative; }
+  #svgView, .sheet svg, .sheet canvas { width: 100%; height: 100%; display: block; }
+  #svgView[hidden], .sheet canvas[hidden] { display: none; }
   .sheet.stale { opacity: .45; transition: opacity .2s; }
+  .busy { position: absolute; top: 10px; right: 14px; font-size: 12px; color: var(--muted); opacity: 0; transition: opacity .2s; z-index: 2; }
+  .busy.on { opacity: 1; }
+  .busy .btn { font-size: 11px; padding: 2px 8px; margin-left: 6px; }
+  /* timeline */
+  .timeline { display: none; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+  .timeline.on { display: flex; }
+  .timeline .btn { padding: 4px 9px; }
+  .scrub { flex: 1; position: relative; height: 22px; display: flex; align-items: center; }
+  .scrub .buf { position: absolute; left: 0; right: 0; height: 4px; border-radius: 2px; background: #e8e7e2; overflow: hidden; }
+  .scrub .buf i { display: block; height: 100%; width: 0; background: #c8d6ef; }
+  .scrub input { position: relative; width: 100%; margin: 0; accent-color: var(--accent); background: transparent; }
+  .fcount { font: 12px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); min-width: 92px; text-align: right; }
+  .timeline select { padding: 3px 4px; font-size: 12px; }
   .status { padding: 7px 14px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted);
             display: flex; gap: 14px; flex-wrap: wrap; }
   .status b { color: var(--ink); font-weight: 600; }
-  .busy { position: absolute; top: 10px; right: 14px; font-size: 12px; color: var(--muted); opacity: 0; transition: opacity .2s; }
-  .busy.on { opacity: 1; }
-  .busy .btn { font-size: 11px; padding: 2px 8px; margin-left: 6px; }
   .side { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 4px 16px 20px; }
   h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px;
        font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
@@ -70,9 +86,16 @@
   .field label .v { color: var(--muted); font-variant-numeric: tabular-nums; }
   .field .help { color: var(--muted); font-size: 11.5px; }
   .field select, .field input[type=number] { width: 100%; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
   .empty { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
   .empty code { background: #f3f2ee; padding: 1px 4px; border-radius: 4px; font-size: 11.5px; }
+  .vidbox { border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px 12px; margin-top: 6px; background: #fcfcfa; }
+  .progress { height: 6px; border-radius: 3px; background: #e8e7e2; overflow: hidden; margin: 10px 0 4px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .vidmsg { font-size: 12px; color: var(--muted); }
+  .vidmsg a { color: var(--accent); font-weight: 600; }
+  .vidmsg.err { color: var(--err); }
   /* help drawer */
   .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--panel); z-index: 20;
             box-shadow: -10px 0 40px rgba(0,0,0,.15); transform: translateX(105%); transition: transform .2s; display: flex; flex-direction: column; }
@@ -95,6 +118,8 @@
   .loading small { color: var(--muted); }
   @keyframes spin { to { transform: rotate(360deg); } }
   kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: #f6f6f4; }
+  .desktop-only { } body.standalone .desktop-only { display: none !important; }
+  body:not(.standalone) .web-only { display: none !important; }
   @media (max-width: 1150px) {
     main { grid-template-columns: minmax(320px, 1fr) minmax(300px, 1fr); grid-template-rows: 1fr auto; }
     .side { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 34vh; }
@@ -111,6 +136,8 @@
 <body>
 <header>
   <h1>plotart <span>Studio</span></h1>
+  <select id="files" class="desktop-only" title="Skizzen im Ordner (Strg/⌘ + O)"><option value="">📁 Meine Skizzen …</option></select>
+  <span class="filename desktop-only" id="fileName" title="Aktuelle Datei"></span>
   <select id="examples" title="Beispiel-Skizze laden"><option value="">Beispiele …</option></select>
   <span class="sep"></span>
   <button class="btn primary" id="run" title="Ausführen (Strg/⌘ + Enter)">▶ Ausführen</button>
@@ -119,14 +146,14 @@
   <input type="number" id="seed" min="1" step="1" title="Seed – gleicher Seed = gleiches Bild">
   <button class="btn" id="dice" title="Neuer Seed (Strg/⌘ + Umschalt + Enter)">🎲</button>
   <span class="grow"></span>
-  <button class="btn" id="expSvg" title="Farb-SVG herunterladen">SVG</button>
+  <button class="btn" id="expSvg" title="Farb-SVG herunterladen (bei Animationen: aktuelles Bild)">SVG</button>
   <button class="btn" id="expPng" title="PNG in der eingestellten Auflösung">PNG</button>
   <button class="btn" id="expPlot" title="Nur Linien, optimiert, eine Ebene pro Farbe">Plotter</button>
   <span class="sep"></span>
-  <button class="btn" id="savePy" title="Skizze als .py speichern (Strg/⌘ + S)">💾 .py</button>
-  <button class="btn" id="openPy" title="Skizze (.py) öffnen">📂</button>
+  <button class="btn" id="savePy" title="Speichern (Strg/⌘ + S) – Umschalt: Speichern unter">💾</button>
+  <button class="btn web-only" id="openPy" title="Skizze (.py) öffnen">📂</button>
   <input type="file" id="fileIn" accept=".py,text/x-python,text/plain" hidden>
-  <button class="btn" id="help" title="Alle Funktionen">? Hilfe</button>
+  <button class="btn" id="help" title="Alle Funktionen (F1)">? Hilfe</button>
   <a class="btn" href="generatoren.html" title="Fertige Generatoren mit Reglern">Generatoren</a>
 </header>
 <main>
@@ -135,7 +162,18 @@
     <div id="console"><span class="muted">Konsole – Ausgaben von print() und Fehler erscheinen hier.</span></div>
   </section>
   <section class="col">
-    <div class="stage" id="stage"><div class="busy" id="busy"><span id="busyMsg">rechnet …</span> <button class="btn" id="cancel" hidden>✕ Abbrechen</button></div><div class="sheet" id="sheet"></div></div>
+    <div class="stage" id="stage"><div class="busy" id="busy"><span id="busyMsg">rechnet …</span> <button class="btn" id="cancel" hidden>✕ Abbrechen</button></div>
+      <div class="sheet" id="sheet"><div id="svgView"></div><canvas id="animView" hidden></canvas></div></div>
+    <div class="timeline" id="timeline">
+      <button class="btn" id="tlStart" title="Zum Anfang (Pos1)">⏮</button>
+      <button class="btn" id="tlPlay" title="Abspielen / Pause (Leertaste)">⏸</button>
+      <button class="btn" id="tlStep" title="Ein Bild weiter (→)">⏭</button>
+      <div class="scrub"><div class="buf"><i id="tlBuf"></i></div><input type="range" id="tlScrub" min="0" max="0" value="0"></div>
+      <span class="fcount" id="tlCount">0 / 0</span>
+      <button class="btn on" id="tlLoop" title="Endlos wiederholen">🔁</button>
+      <select id="tlSpeed" title="Wiedergabe-Geschwindigkeit">
+        <option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+    </div>
     <div class="status" id="status">–</div>
   </section>
   <aside class="side">
@@ -143,11 +181,35 @@
       <button class="btn" id="resetParams">Standard</button></span></h2>
     <div id="params"><p class="empty">Regler entstehen automatisch aus deiner Skizze, z. B.<br>
       <code>n = param("Anzahl", 40, 1, 200)</code></p></div>
+
+    <div id="vidSection" hidden>
+      <h2>Animation exportieren</h2>
+      <div class="vidbox desktop-only">
+        <div class="field"><label>Format</label><select id="vidFormat"></select></div>
+        <div class="field"><label>Auflösung</label><select id="vidScale"></select></div>
+        <div class="row2">
+          <div class="field"><label>Bilder</label><input type="number" id="vidFrames" min="1" max="100000" step="1"></div>
+          <div class="field"><label>fps</label><input type="number" id="vidFps" min="1" max="120" step="1"></div>
+        </div>
+        <div class="vidmsg" id="vidLen"></div>
+        <button class="btn primary" id="vidStart" style="width:100%;justify-content:center;margin-top:8px">🎬 Exportieren</button>
+        <div id="vidJob" hidden>
+          <div class="progress"><i id="vidBar"></i></div>
+          <div class="vidmsg" id="vidMsg"></div>
+          <button class="btn" id="vidCancel" style="margin-top:6px">✕ Abbrechen</button>
+        </div>
+        <div class="vidmsg" id="vidResult"></div>
+      </div>
+      <p class="empty web-only">Video-, GIF- und PNG-Sequenz-Export gibt es in der Desktop-Version: <code>python3 -m plotart</code></p>
+    </div>
+
     <h2>Export</h2>
     <div class="field"><label>PNG-Auflösung</label>
       <select id="pngScale"></select></div>
     <div class="field"><label>Stiftbreite für Plotter (mm)</label>
       <input type="number" id="penWidth" min="0.05" max="3" step="0.05" value="0.45"></div>
+    <h2 class="desktop-only">Ordner</h2>
+    <p class="empty desktop-only" id="folders"></p>
   </aside>
 </main>
 <div class="drawer" id="drawer">
@@ -179,21 +241,37 @@ const httpBackend = {
   },
 };
 const backend = window.PLOTART_BACKEND || httpBackend;
+const DESKTOP = !backend.standalone;
+document.body.classList.toggle("standalone", !DESKTOP);
 
 const STORE = "plotart-studio-v1";
 const state = { seed: 1, params: {}, specs: [], live: true, svg: "", width: 800, height: 800, unit: "px",
-                req: 0, reference: [], examples: [], errorLine: null };
+                req: 0, reference: [], examples: [], errorLine: null, animated: false,
+                file: null, fileMtime: 0, savedSource: null };
 
 function load() { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } }
 function persist() {
-  try { localStorage.setItem(STORE, JSON.stringify({ source: getCode(), seed: state.seed, params: state.params, live: state.live })); }
-  catch (e) {}
+  try {
+    localStorage.setItem(STORE, JSON.stringify({ source: getCode(), seed: state.seed, params: state.params,
+      live: state.live, file: state.file }));
+  } catch (e) {}
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function fmtNum(v, d = 1) { return Number(v).toLocaleString("de-AT", { maximumFractionDigits: d }); }
+function fmtBytes(b) { return b > 1048576 ? fmtNum(b / 1048576) + " MB" : fmtNum(b / 1024, 0) + " KB"; }
+function toast(msg, ms = 2600) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), ms);
 }
 
-// ------------------------------------------------------------------ editor
-let cm = null;
+// ================================================================== editor
+let cm = null, silent = false;
 function getCode() { return cm ? cm.getValue() : $("code").value; }
-function setCode(src) { if (cm) { cm.setValue(src); cm.clearHistory(); } else $("code").value = src; }
+function setCode(src) {
+  silent = true;
+  if (cm) { cm.setValue(src); cm.clearHistory(); } else $("code").value = src;
+  silent = false;
+}
 
 function initEditor() {
   if (!window.CodeMirror) {          // fallback: plain textarea
@@ -206,7 +284,8 @@ function initEditor() {
     extraKeys: {
       "Ctrl-Enter": () => run(0), "Cmd-Enter": () => run(0),
       "Shift-Ctrl-Enter": newSeed, "Shift-Cmd-Enter": newSeed,
-      "Ctrl-S": savePy, "Cmd-S": savePy,
+      "Ctrl-S": () => save(false), "Cmd-S": () => save(false),
+      "Shift-Ctrl-S": () => save(true), "Shift-Cmd-S": () => save(true),
       "Ctrl-/": "toggleComment", "Cmd-/": "toggleComment",
       "Ctrl-Space": "autocomplete",
       Tab: (c) => c.somethingSelected() ? c.indentSelection("add") : c.replaceSelection("    ", "end"),
@@ -219,7 +298,7 @@ function initEditor() {
 
 const PY_WORDS = ["for", "in", "range", "if", "elif", "else", "while", "def", "return", "import", "from",
   "and", "or", "not", "True", "False", "None", "with", "lambda", "len", "list", "int", "float", "print",
-  "enumerate", "zip", "abs", "min", "max", "round", "sum", "sorted", "numpy", "np"];
+  "enumerate", "zip", "abs", "min", "max", "round", "sum", "sorted", "numpy", "np", "global", "class"];
 function hintApi(editor) {
   const cur = editor.getCursor(), token = editor.getTokenAt(cur);
   const start = token.string.match(/^\w/) ? token.start : cur.ch;
@@ -232,8 +311,10 @@ function hintApi(editor) {
 
 let codeTimer = null;
 function onCodeChange() {
+  if (silent) return;
   clearErrorLine();
   persist();
+  updateFileLabel();
   if (state.live) { clearTimeout(codeTimer); codeTimer = setTimeout(() => run(0), 550); }
 }
 function clearErrorLine() {
@@ -245,9 +326,7 @@ function markErrorLine(line) {
   if (cm && line) { state.errorLine = line - 1; cm.addLineClass(line - 1, "background", "cm-error-line"); }
 }
 
-// ------------------------------------------------------------------ running
-function esc(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
-
+// ================================================================== running
 let runTimer = null;
 function run(delay = 0) {
   clearTimeout(runTimer);
@@ -255,20 +334,23 @@ function run(delay = 0) {
 }
 
 let cancelTimer = null;
-function setBusy(on) {
+function setBusy(on, msg = "rechnet …") {
   $("busy").classList.toggle("on", on);
   clearTimeout(cancelTimer);
   $("cancel").hidden = true;
   if (on) {
-    $("busyMsg").textContent = "rechnet …";
+    $("busyMsg").textContent = msg;
     if (backend.cancel) cancelTimer = setTimeout(() => { $("cancel").hidden = false; }, 4000);
   }
 }
 $("cancel").onclick = () => {
   backend.cancel();
   setBusy(false);
+  anim.gen++;
   $("console").innerHTML = '<span class="err">Abgebrochen. Python wird neu gestartet …</span>';
 };
+
+function sketchPayload() { return { source: getCode(), params: state.params, seed: state.seed }; }
 
 async function runNow() {
   const id = ++state.req;
@@ -277,20 +359,26 @@ async function runNow() {
   $("sheet").classList.add("stale");
   persist();
   try {
-    const res = await backend.call("sketch_run", { source: getCode(), params: state.params, seed: state.seed });
+    const res = await backend.call("sketch_run", sketchPayload());
     if (id !== state.req) return;
     showLog(res);
     // on errors keep the previous sliders (params after the error line were never declared)
-    if (res.sketch_error) { markErrorLine(res.sketch_error.line); return; }
+    if (res.sketch_error) { markErrorLine(res.sketch_error.line); stopAnimation(false); return; }
     buildParams(res.params);
-    Object.assign(state, { svg: res.svg, width: res.width, height: res.height, unit: res.unit });
-    $("sheet").innerHTML = res.svg.replace(/^<\?xml[^>]*>\s*/, "");
+    Object.assign(state, { svg: res.svg, width: res.width, height: res.height, unit: res.unit, animated: res.animated });
     $("sheet").classList.remove("stale");
-    fitSheet();
     updatePngScales();
+    if (res.animated) {
+      startAnimation(res);
+    } else {
+      stopAnimation(true);
+      $("svgView").innerHTML = res.svg.replace(/^<\?xml[^>]*>\s*/, "");
+    }
+    fitSheet();
     const dims = `${fmtNum(res.width)} × ${fmtNum(res.height)} ${res.unit}`;
     $("status").innerHTML = `<span>Leinwand <b>${dims}</b></span><span>Formen <b>${res.items.toLocaleString("de-AT")}</b></span>` +
-      `<span>Zeit <b>${fmtNum(res.ms)} ms</b></span><span>Seed <b>${res.seed}</b></span>`;
+      `<span>Zeit <b>${fmtNum(res.ms)} ms</b>${res.animated ? " (1. Bild)" : ""}</span><span>Seed <b>${res.seed}</b></span>` +
+      (res.animated ? `<span>Animation <b>${res.frames} Bilder · ${fmtNum(res.fps)} fps · ${fmtNum(res.frames / res.fps)} s</b></span>` : "");
   } catch (e) {
     if (id !== state.req || e.message === "veraltet" || e.message === "Abgebrochen") return;
     $("console").innerHTML = `<span class="err">${esc(e.message)}</span>`;
@@ -298,8 +386,6 @@ async function runNow() {
     if (id === state.req) setBusy(false);
   }
 }
-
-function fmtNum(v) { return Number(v).toLocaleString("de-AT", { maximumFractionDigits: 1 }); }
 
 function showLog(res) {
   let html = "";
@@ -314,19 +400,185 @@ function showLog(res) {
   $("console").innerHTML = html;
   $("console").scrollTop = $("console").scrollHeight;
 }
+function appendLog(text, cls = "") {
+  if (!text) return;
+  const c = $("console");
+  c.insertAdjacentHTML("beforeend", (cls ? `<span class="${cls}">` : "") + esc(text) + (cls ? "</span>" : ""));
+  if (c.textContent.length > 60000) c.innerHTML = esc(c.textContent.slice(-40000));
+  c.scrollTop = c.scrollHeight;
+}
 
 function fitSheet() {
-  const svg = $("sheet").querySelector("svg");
-  if (!svg) return;
-  const vb = svg.viewBox.baseVal, stage = $("stage");
+  const stage = $("stage");
   const cw = stage.clientWidth - 44, ch = stage.clientHeight - 44;
-  const s = Math.min(cw / vb.width, ch / vb.height);
-  $("sheet").style.width = (vb.width * s) + "px";
-  $("sheet").style.height = (vb.height * s) + "px";
+  const s = Math.min(cw / state.width, ch / state.height);
+  const w = Math.max(1, state.width * s), h = Math.max(1, state.height * s);
+  $("sheet").style.width = w + "px";
+  $("sheet").style.height = h + "px";
+  if (state.animated) sizeCanvas(w, h);
 }
 window.addEventListener("resize", fitSheet);
 
-// ------------------------------------------------------------------ parameters
+// ================================================================== animation player
+// Frames arrive from Python as SVG (only what changed in that frame) and are composited onto
+// a canvas, so translucent backgrounds produce trails exactly like in p5.
+const anim = { gen: 0, frames: [], next: 0, total: 0, fps: 30, done: false, cur: -1, playing: true, loop: true,
+               speed: 1, bytes: 0, checkpoints: new Map(), drawing: Promise.resolve(), seekTo: null, lastTick: 0, acc: 0 };
+const canvas = $("animView"), ctx = canvas.getContext("2d");
+
+function sizeCanvas(w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  const cw = Math.round(w * dpr), ch = Math.round(h * dpr);
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw; canvas.height = ch;
+    anim.checkpoints.clear();
+    if (anim.cur >= 0) redrawTo(anim.cur);         // canvas resize wipes it
+  }
+}
+
+function startAnimation(res) {
+  const gen = ++anim.gen;
+  Object.assign(anim, { frames: [], next: 0, total: res.frames, fps: res.fps, done: false, cur: -1, bytes: 0,
+                        seekTo: null, acc: 0 });
+  anim.checkpoints.clear();
+  $("svgView").hidden = true; $("animView").hidden = false;
+  $("timeline").classList.add("on");
+  $("vidSection").hidden = false;
+  $("tlScrub").max = res.frames - 1;
+  $("vidFrames").value = res.frames; $("vidFps").value = Math.round(res.fps);
+  updateVidLength(); updateVidScales();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  updateTimeline();
+  fetchFrames(gen);
+}
+
+function stopAnimation(hide) {
+  anim.gen++;
+  if (hide) {
+    state.animated = false;
+    $("svgView").hidden = false; $("animView").hidden = true;
+    $("timeline").classList.remove("on");
+    $("vidSection").hidden = true;
+  }
+}
+
+async function fetchFrames(gen) {
+  const payload = sketchPayload();
+  while (gen === anim.gen && !anim.done) {
+    // keep a healthy buffer ahead of the playhead, but don't run away with memory
+    const ahead = anim.frames.length - Math.max(anim.cur, anim.seekTo ?? -1);
+    if (ahead > 120 && anim.seekTo == null) { await new Promise(r => setTimeout(r, 120)); continue; }
+    if (anim.bytes > 400e6) { appendLog("Vorschau-Puffer voll (400 MB) – für die ganze Animation bitte exportieren.\n", "muted"); return; }
+    let r;
+    try {
+      r = await backend.call("anim_frames", { ...payload, start: anim.next, count: 12, budget_ms: 300 });
+    } catch (e) {
+      if (gen === anim.gen && e.message !== "Abgebrochen") appendLog(e.message + "\n", "err");
+      return;
+    }
+    if (gen !== anim.gen) return;
+    for (const f of r.frames) { anim.frames.push(f); anim.bytes += f.svg.length; }
+    anim.next = r.next; anim.done = r.done; anim.total = r.total;
+    if (r.log) appendLog(r.log);
+    if (r.sketch_error) {
+      const e = r.sketch_error;
+      appendLog(`Bild ${anim.next + 1}: ${e.line ? "Zeile " + e.line + ": " : ""}${e.message}\n`, "err");
+      markErrorLine(e.line);
+      anim.done = true; anim.total = anim.frames.length || 1;
+      $("tlScrub").max = Math.max(0, anim.total - 1);
+    }
+    updateTimeline();
+    if (anim.cur < 0 && anim.frames.length) showFrame(0);
+  }
+}
+
+function decode(svg) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Bild konnte nicht dargestellt werden")); };
+    img.src = url;
+  });
+}
+
+async function paint(i) {
+  const f = anim.frames[i];
+  const img = await decode(f.svg);
+  if (f.clears || i === 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  // snapshots for fast seeking in animations that accumulate (no full clear)
+  if (!f.clears && i % 24 === 0 && anim.checkpoints.size < 60 && window.createImageBitmap) {
+    anim.checkpoints.set(i, await createImageBitmap(canvas));
+  }
+}
+
+function showFrame(i) {
+  anim.drawing = anim.drawing.then(async () => {
+    if (i === anim.cur + 1) { await paint(i); anim.cur = i; }
+    else await redrawTo(i);
+    updateTimeline();
+  }).catch(e => appendLog(e.message + "\n", "err"));
+  return anim.drawing;
+}
+
+async function redrawTo(n) {
+  // start from the last frame that clears the canvas (or the nearest snapshot after it)
+  let k = n;
+  while (k > 0 && !anim.frames[k].clears) k--;
+  let start = k;
+  let best = -1;
+  for (const idx of anim.checkpoints.keys()) if (idx > k && idx <= n && idx > best) best = idx;
+  if (best >= 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(anim.checkpoints.get(best), 0, 0);
+    start = best + 1;
+  }
+  for (let i = start; i <= n; i++) await paint(i);
+  anim.cur = n;
+}
+
+function seek(n) {
+  n = Math.max(0, Math.min(n, anim.total - 1));
+  if (n < anim.frames.length) { anim.seekTo = null; showFrame(n); }
+  else { anim.seekTo = n; $("tlCount").textContent = `lädt … ${anim.frames.length} / ${anim.total}`; }
+}
+
+function tick(now) {
+  requestAnimationFrame(tick);
+  if (!state.animated || !anim.frames.length) { anim.lastTick = now; return; }
+  if (anim.seekTo != null && anim.seekTo < anim.frames.length) { const n = anim.seekTo; anim.seekTo = null; showFrame(n); }
+  const dt = Math.min(250, now - (anim.lastTick || now));
+  anim.lastTick = now;
+  if (!anim.playing) return;
+  anim.acc += dt;
+  const frameMs = 1000 / (anim.fps * anim.speed);
+  if (anim.acc < frameMs) return;
+  anim.acc = anim.acc % frameMs;
+  let n = anim.cur + 1;
+  if (n >= anim.total) {
+    if (!anim.loop) { setPlaying(false); return; }
+    n = 0;
+  }
+  if (n >= anim.frames.length) { $("tlCount").textContent = `puffert … ${anim.frames.length} / ${anim.total}`; return; }
+  showFrame(n);
+}
+requestAnimationFrame(tick);
+
+function setPlaying(on) { anim.playing = on; $("tlPlay").textContent = on ? "⏸" : "▶"; }
+function updateTimeline() {
+  $("tlBuf").style.width = (100 * anim.frames.length / Math.max(1, anim.total)) + "%";
+  if (document.activeElement !== $("tlScrub")) $("tlScrub").value = Math.max(0, anim.cur);
+  $("tlCount").textContent = `${Math.max(0, anim.cur) + 1} / ${anim.total}`;
+}
+$("tlPlay").onclick = () => setPlaying(!anim.playing);
+$("tlStart").onclick = () => seek(0);
+$("tlStep").onclick = () => { setPlaying(false); seek(anim.cur + 1 >= anim.total ? 0 : anim.cur + 1); };
+$("tlLoop").onclick = () => { anim.loop = !anim.loop; $("tlLoop").classList.toggle("on", anim.loop); };
+$("tlSpeed").onchange = () => { anim.speed = parseFloat($("tlSpeed").value) || 1; };
+$("tlScrub").oninput = () => { setPlaying(false); seek(parseInt($("tlScrub").value)); };
+
+// ================================================================== parameters
 function fmtVal(p, v) {
   if (p.kind === "float") {
     const dec = Math.max(0, Math.min(5, Math.ceil(-Math.log10(p.step || 0.01))));
@@ -390,24 +642,33 @@ function randomParamValue(p) {
   return p.default;
 }
 
-// ------------------------------------------------------------------ export
-function updatePngScales() {
-  const sel = $("pngScale"), prev = sel.value;
-  const opts = state.unit === "mm"
-    ? [[150 / 25.4, "150 dpi"], [300 / 25.4, "300 dpi (Druck)"], [600 / 25.4, "600 dpi"]]
-    : [[1, "1× (Originalgröße)"], [2, "2×"], [4, "4×"]];
-  const sig = state.unit;
-  if (sel.dataset.unit === sig) return;
-  sel.dataset.unit = sig; sel.innerHTML = "";
-  for (const [s, lab] of opts) {
-    const px = `${Math.round(state.width * s)} × ${Math.round(state.height * s)} px`;
-    sel.add(new Option(`${lab} – ${px}`, s));
+// ================================================================== still-image export
+function scaleOptions(kind) {
+  if (state.unit === "mm") {
+    const dpis = kind === "video" ? [72, 96, 150] : [150, 300, 600];
+    return dpis.map(d => [d / 25.4, `${d} dpi`]);
   }
-  sel.selectedIndex = state.unit === "mm" ? 1 : 1;
+  return (kind === "video" ? [[0.5, "½×"], [1, "1×"], [2, "2×"]] : [[1, "1× (Originalgröße)"], [2, "2×"], [4, "4×"]]);
+}
+function fillScaleSelect(sel, kind, defIndex) {
+  const sig = `${state.unit}:${state.width}x${state.height}`, prev = sel.value;
+  if (sel.dataset.sig === sig) return;
+  sel.dataset.sig = sig; sel.innerHTML = "";
+  for (const [s, lab] of scaleOptions(kind)) {
+    let w = Math.round(state.width * s), h = Math.round(state.height * s);
+    sel.add(new Option(`${lab} – ${w} × ${h} px`, s));
+  }
+  sel.selectedIndex = defIndex;
   if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
 }
+function updatePngScales() { fillScaleSelect($("pngScale"), "png", 1); }
 
-function fileName(ext) { return `skizze_${state.seed}.${ext}`; }
+function fileStem() {
+  if (state.file) return state.file.replace(/\.py$/, "");
+  const first = getCode().split("\n")[0].replace(/^["'#\s]+|["'\s]+$/g, "");
+  return first.toLowerCase().replace(/[^a-z0-9äöüß]+/g, "_").replace(/^_|_$/g, "").slice(0, 40) || "skizze";
+}
+function fileName(ext) { return `${fileStem()}_${state.seed}.${ext}`; }
 
 async function deliver(blob, name) {
   // iPad & co: share sheet ("In Dateien sichern"); desktop: normal download
@@ -421,14 +682,21 @@ async function deliver(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
-function toast(msg) {
-  const t = $("toast"); t.textContent = msg; t.classList.add("on");
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2600);
+function currentSvg() {
+  return state.animated && anim.cur >= 0 ? anim.frames[anim.cur].svg : state.svg;
 }
-
-$("expSvg").onclick = () => state.svg && deliver(new Blob([state.svg], { type: "image/svg+xml" }), fileName("svg"));
+$("expSvg").onclick = () => {
+  const svg = currentSvg();
+  if (!svg) return;
+  if (state.animated) toast("SVG enthält nur das aktuelle Bild – für Spuren-Effekte lieber PNG nutzen");
+  deliver(new Blob([svg], { type: "image/svg+xml" }), fileName("svg"));
+};
 
 $("expPng").onclick = () => {
+  if (state.animated) {          // snapshot of what is on screen (includes accumulated trails)
+    canvas.toBlob(b => b && deliver(b, `${fileStem()}_${state.seed}_bild${anim.cur + 1}.png`), "image/png");
+    return;
+  }
   if (!state.svg) return;
   const s = parseFloat($("pngScale").value) || 1;
   const w = Math.round(state.width * s), h = Math.round(state.height * s);
@@ -448,27 +716,187 @@ $("expPng").onclick = () => {
 
 $("expPlot").onclick = async () => {
   try {
-    const r = await backend.call("sketch_plotter", { source: getCode(), params: state.params, seed: state.seed,
-                                                      pen_width: parseFloat($("penWidth").value) || 0.45 });
+    const r = await backend.call("sketch_plotter", { ...sketchPayload(), pen_width: parseFloat($("penWidth").value) || 0.45 });
     if (r.sketch_error) { toast("Fehler in der Skizze"); return; }
-    await deliver(new Blob([r.svg], { type: "image/svg+xml" }), `skizze_${state.seed}_plotter.svg`);
+    await deliver(new Blob([r.svg], { type: "image/svg+xml" }), fileName("svg").replace(/\.svg$/, "_plotter.svg"));
     toast(`Plotter-SVG: ${r.stats.paths} Pfade, ${fmtNum(r.stats.draw_mm / 1000)} m Linie, ca. ${fmtNum(r.stats.minutes)} min`);
   } catch (e) { toast("Fehler: " + e.message); }
 };
 
-function savePy() {
-  const first = getCode().split("\n")[0].replace(/^["'#\s]+|["'\s]+$/g, "");
-  const name = (first.toLowerCase().replace(/[^a-z0-9äöüß]+/g, "_").replace(/^_|_$/g, "").slice(0, 40) || "skizze") + ".py";
-  deliver(new Blob([getCode()], { type: "text/x-python" }), name);
+// ================================================================== video export (desktop)
+let caps = null;
+async function loadCapabilities() {
+  try { caps = await backend.call("export_capabilities", {}); } catch (e) { return; }
+  const sel = $("vidFormat"); sel.innerHTML = "";
+  for (const [k, label] of Object.entries(caps.formats)) {
+    const ok = caps.available[k];
+    const o = new Option(label + (ok ? "" : (k === "mp4" || k === "webm" ? " – ffmpeg fehlt" : " – Pillow fehlt")), k);
+    o.disabled = !ok; sel.add(o);
+  }
+  const first = [...sel.options].find(o => !o.disabled);
+  if (first) sel.value = first.value;
 }
-$("savePy").onclick = savePy;
+function updateVidScales() { fillScaleSelect($("vidScale"), "video", 1); }
+function updateVidLength() {
+  const n = parseInt($("vidFrames").value) || 0, fps = parseFloat($("vidFps").value) || 30;
+  $("vidLen").textContent = `Länge: ${fmtNum(n / fps)} s`;
+}
+$("vidFrames").oninput = updateVidLength;
+$("vidFps").oninput = updateVidLength;
+
+let job = null;
+$("vidStart").onclick = async () => {
+  $("vidResult").innerHTML = ""; $("vidResult").className = "vidmsg";
+  try {
+    job = await backend.call("export_start", { ...sketchPayload(), format: $("vidFormat").value,
+      scale: parseFloat($("vidScale").value) || 1, frames: parseInt($("vidFrames").value) || null,
+      fps: parseFloat($("vidFps").value) || null, name: fileStem() });
+  } catch (e) { $("vidResult").className = "vidmsg err"; $("vidResult").textContent = e.message; return; }
+  $("vidJob").hidden = false; $("vidStart").disabled = true;
+  pollJob(job.id);
+};
+$("vidCancel").onclick = () => job && backend.call("export_cancel", { id: job.id }).catch(() => {});
+
+async function pollJob(id) {
+  let st;
+  try { st = await backend.call("export_status", { id }); }
+  catch (e) { st = { state: "error", error: e.message }; }
+  if (st.state === "running") {
+    const pct = st.total ? 100 * st.progress / st.total : 0;
+    $("vidBar").style.width = pct + "%";
+    $("vidMsg").textContent = `Bild ${st.progress} / ${st.total || "?"} · ${fmtNum(st.seconds)} s`;
+    setTimeout(() => pollJob(id), 400);
+    return;
+  }
+  $("vidJob").hidden = true; $("vidStart").disabled = false; $("vidBar").style.width = "0";
+  const box = $("vidResult");
+  if (st.state === "done") {
+    const href = st.url + (TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "");
+    box.className = "vidmsg";
+    box.innerHTML = `✓ fertig in ${fmtNum(st.seconds)} s · ${st.width} × ${st.height} px · ${fmtBytes(st.bytes)}<br>` +
+      `<a href="${esc(href)}" download="${esc(st.file)}">⬇ ${esc(st.file)}</a> <span>(liegt auch im Ordner output/)</span>`;
+    box.querySelector("a").click();
+  } else if (st.state === "cancelled") {
+    box.className = "vidmsg"; box.textContent = "Export abgebrochen.";
+  } else {
+    box.className = "vidmsg err"; box.textContent = st.error || "Export fehlgeschlagen";
+  }
+}
+
+// ================================================================== files (desktop)
+const TEMPLATES = {
+  bild: '"""Neue Skizze"""\nsize(800, 800)\nbackground("#f4f1ea")\n\nno_stroke()\nfill("#1f5fbf")\ncircle(width / 2, height / 2, 300)\n',
+  animation: '"""Neue Animation"""\nsize(800, 800)\nanimation(frames=120, fps=30)        # 4 Sekunden\n\n' +
+    'def setup():\n    no_stroke()\n\n\ndef draw():\n    background("#0f1020")\n    # t läuft von 0 bis 1 – perfekt für nahtlose Loops\n' +
+    '    for i in range(8):\n        a = TAU * (t + i / 8)\n        fill(hsb(i * 45, 70, 100))\n' +
+    '        circle(width / 2 + cos(a) * 250, height / 2 + sin(a) * 250, 60)\n',
+};
+
+function isDirty() { return state.savedSource != null && getCode() !== state.savedSource; }
+function updateFileLabel() {
+  if (!DESKTOP) return;
+  const el = $("fileName");
+  if (!state.file) { el.innerHTML = '<span class="dirty">nicht gespeichert</span>'; return; }
+  el.innerHTML = `${isDirty() ? '<span class="dirty">● </span>' : ""}<b>${esc(state.file)}</b>`;
+}
+
+async function refreshFiles() {
+  if (!DESKTOP) return;
+  let r;
+  try { r = await backend.call("sketch_files", {}); } catch (e) { return; }
+  const sel = $("files");
+  sel.innerHTML = "";
+  sel.add(new Option("📁 Meine Skizzen …", ""));
+  for (const f of r.files) sel.add(new Option(f.name, "open:" + f.name));
+  const sepOpt = new Option("──────────", ""); sepOpt.disabled = true; sel.add(sepOpt);
+  sel.add(new Option("＋ Neue Skizze (Bild)", "new:bild"));
+  sel.add(new Option("＋ Neue Animation", "new:animation"));
+  sel.add(new Option("💾 Speichern unter …", "saveas"));
+  $("folders").innerHTML = `Skizzen: <code>${esc(r.dir)}</code><br>Exporte: <code>output/</code><br>` +
+    `Tipp: Öffne die .py-Datei auch in deinem Editor (VS Code …) – Änderungen erscheinen hier automatisch.`;
+}
+
+function confirmDiscard() {
+  return !isDirty() && (state.file || !getCode().trim() || state.examples.some(e => e.source === getCode()))
+    || confirm("Ungespeicherte Änderungen verwerfen?");
+}
+
+async function openFile(name) {
+  if (!confirmDiscard()) return;
+  try {
+    const r = await backend.call("sketch_file_load", { name });
+    state.file = r.name; state.fileMtime = r.mtime; state.savedSource = r.source;
+    state.params = {}; state.specSig = null;
+    setCode(r.source); updateFileLabel(); persist(); run(0);
+  } catch (e) { toast(e.message); }
+}
+
+async function save(saveAs) {
+  if (!DESKTOP) {
+    deliver(new Blob([getCode()], { type: "text/x-python" }), fileStem() + ".py");
+    return;
+  }
+  let name = state.file;
+  if (saveAs || !name) {
+    name = prompt("Dateiname für die Skizze:", (state.file || fileStem() + ".py"));
+    if (!name) return;
+    if (!name.endsWith(".py")) name += ".py";
+  }
+  const source = getCode();
+  try {
+    const files = (await backend.call("sketch_files", {})).files.map(f => f.name);
+    if (name !== state.file && files.includes(name) && !confirm(`${name} existiert bereits. Überschreiben?`)) return;
+    const r = await backend.call("sketch_file_save", { name, source, overwrite: true });
+    state.file = r.name; state.fileMtime = r.mtime; state.savedSource = source;
+    updateFileLabel(); persist(); refreshFiles();
+    toast("Gespeichert: " + r.name);
+  } catch (e) { toast("Speichern fehlgeschlagen: " + e.message); }
+}
+
+$("files").onchange = () => {
+  const v = $("files").value; $("files").value = "";
+  if (v.startsWith("open:")) openFile(v.slice(5));
+  else if (v.startsWith("new:")) {
+    if (!confirmDiscard()) return;
+    state.file = null; state.savedSource = null; state.params = {}; state.specSig = null;
+    setCode(TEMPLATES[v.slice(4)]); updateFileLabel(); persist(); run(0);
+  } else if (v === "saveas") save(true);
+};
+
+// external editor support: reload the file when it changes on disk
+let watchBusy = false;
+setInterval(async () => {
+  if (!DESKTOP || !state.file || watchBusy || document.hidden) return;
+  watchBusy = true;
+  try {
+    const st = await backend.call("sketch_file_stat", { name: state.file });
+    if (st.exists && st.mtime > state.fileMtime + 1e-6) {
+      state.fileMtime = st.mtime;
+      if (!isDirty() || confirm(`${state.file} wurde außerhalb geändert. Neu laden und eigene Änderungen verwerfen?`)) {
+        const r = await backend.call("sketch_file_load", { name: state.file });
+        state.savedSource = r.source; state.fileMtime = r.mtime;
+        if (r.source !== getCode()) {
+          const pos = cm ? cm.getCursor() : null;
+          setCode(r.source);
+          if (cm && pos) cm.setCursor(pos);
+          updateFileLabel(); run(0);
+          toast("Neu geladen – Datei wurde extern geändert");
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
+  watchBusy = false;
+}, 1000);
+
+$("savePy").onclick = (e) => save(e.shiftKey);
 $("openPy").onclick = () => $("fileIn").click();
 $("fileIn").onchange = async () => {
   const f = $("fileIn").files[0]; if (!f) return;
-  setCode(await f.text()); $("fileIn").value = ""; state.params = {}; run(0);
+  setCode(await f.text()); $("fileIn").value = ""; state.params = {}; state.specSig = null; run(0);
 };
+window.addEventListener("beforeunload", (e) => { if (DESKTOP && isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
-// ------------------------------------------------------------------ toolbar
+// ================================================================== toolbar & keys
 function newSeed() { state.seed = Math.floor(Math.random() * 999999) + 1; run(0); }
 $("run").onclick = () => run(0);
 $("dice").onclick = newSeed;
@@ -482,21 +910,29 @@ $("shuffleParams").onclick = () => {
 $("examples").onchange = () => {
   const ex = state.examples.find(e => e.name === $("examples").value);
   $("examples").value = "";
-  if (!ex) return;
-  const cur = getCode().trim();
-  const known = state.examples.some(e => e.source.trim() === cur);
-  if (cur && !known && !confirm("Aktuelle Skizze ersetzen? (Vorher mit 💾 speichern, falls du sie behalten willst.)")) return;
+  if (!ex || !confirmDiscard()) return;
   state.params = {}; state.specSig = null;
-  setCode(ex.source); run(0);
+  state.file = null; state.savedSource = null; updateFileLabel();
+  setCode(ex.source); persist(); run(0);
 };
 document.addEventListener("keydown", (e) => {
   const mod = e.ctrlKey || e.metaKey;
+  const inEditor = cm ? cm.hasFocus() : document.activeElement === $("code");
+  const typing = inEditor || ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName);
   if (mod && e.key === "Enter") { e.preventDefault(); e.shiftKey ? newSeed() : run(0); }
-  else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); savePy(); }
+  else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(e.shiftKey); }
+  else if (mod && e.key.toLowerCase() === "o" && DESKTOP) { e.preventDefault(); $("files").focus(); $("files").showPicker?.(); }
+  else if (e.key === "F1") { e.preventDefault(); $("help").click(); }
   else if (e.key === "Escape") $("drawer").classList.remove("on");
+  else if (!typing && state.animated) {
+    if (e.code === "Space") { e.preventDefault(); setPlaying(!anim.playing); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); $("tlStep").click(); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); setPlaying(false); seek(Math.max(0, anim.cur - 1)); }
+    else if (e.key === "Home") { e.preventDefault(); seek(0); }
+  }
 });
 
-// ------------------------------------------------------------------ help
+// ================================================================== help
 function buildReference(filter = "") {
   const f = filter.trim().toLowerCase(), list = $("refList");
   list.innerHTML = "";
@@ -520,7 +956,7 @@ $("help").onclick = () => { $("drawer").classList.add("on"); $("refSearch").focu
 $("closeHelp").onclick = () => $("drawer").classList.remove("on");
 $("refSearch").oninput = () => buildReference($("refSearch").value);
 
-// ------------------------------------------------------------------ start
+// ================================================================== start
 (async function init() {
   initEditor();
   const saved = load();
@@ -548,10 +984,18 @@ $("refSearch").oninput = () => buildReference($("refSearch").value);
   $("loading").classList.remove("on");
   for (const e of state.examples) $("examples").add(new Option(e.title, e.name));
   buildReference();
-  const src = saved.source && saved.source.trim() ? saved.source : (state.examples[0] || { source: "" }).source;
-  if (cm) cm.off("change", onCodeChange);
+  if (DESKTOP) { refreshFiles(); loadCapabilities(); }
+  let src = saved.source && saved.source.trim() ? saved.source : (state.examples[0] || { source: "" }).source;
+  if (DESKTOP && saved.file) {
+    // reopen the last file; keep unsaved edits from the last session if there were any
+    try {
+      const r = await backend.call("sketch_file_load", { name: saved.file });
+      state.file = r.name; state.fileMtime = r.mtime; state.savedSource = r.source;
+      if (!saved.source || !saved.source.trim()) src = r.source;
+    } catch (e) { state.file = null; }
+  }
   setCode(src);
-  if (cm) cm.on("change", onCodeChange);
+  updateFileLabel();
   run(0);
 })();
 </script>
