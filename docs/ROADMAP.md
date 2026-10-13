@@ -4,6 +4,67 @@ Leitlinie: plotart ist in erster Linie ein Werkzeug für **generative und algori
 
 Legende: ✅ erledigt · 🔨 in Arbeit · ⬜ geplant
 
+## ⬜ Neue Wünsche (Oktober 2026) – noch nicht begonnen, Reihenfolge wird abgestimmt
+
+### I – Mehrere Sprachen im Studio („Mehrsprachen-Studio“)
+
+Gemeinsam für alle Sprachen: Seed, Regler (`param`), Varianten, Favoriten, Export (PNG/SVG/Video) und Web-Seite bleiben gleich.
+
+- ⬜ **p5.js / JavaScript-Modus:** Skizzen in p5.js schreiben; sie laufen direkt im Browser, auch am iPad.
+- ⬜ **Processing (Java, `.pde`):**
+  - Sketches über `processing-java` ausführen, sofern Processing installiert ist
+  - Bilder und Animationen ins Studio holen
+  - Konverter einfacher Processing-Sketches nach plotart-Python
+- ⬜ **R-Kunst:**
+  - R-Skripte (aRtsy, ggplot2) über `Rscript` am Computer
+  - R im Browser über webR
+  - Beispiele im Stil von aRtsy
+- ⬜ **Kotlin (OPENRNDR):**
+  - Vorlagen-Projekt
+  - Datenaustausch mit plotart (SVG, JSON-Geometrie, OSC)
+  - optional Start aus dem Studio, braucht Java und Gradle
+- ⬜ **React:**
+  - React-Komponente `<PlotartWerk>`, um interaktive Werke in Websites und React-Apps einzubetten (passt zur Website-Anbindung)
+  - Vorlage für React Three Fiber (3D-Generativkunst)
+
+### II – Mathe-Kunst
+
+- ⬜ **Numerische Integration als Bild und Animation:**
+  - Riemann-Summen, Mittelpunkt-, Trapez- und Simpson-Regel
+  - Fehlerflächen und Konvergenz
+  - dazu ein Funktions-Plotter für beliebige Formeln
+- ⬜ **Kurven-Baukasten:** Lissajous, Rosen, Harmonograph, Spirograph, Superformel, Fourier-Epizykel (Zeichnung → Kreise)
+- ⬜ **Differentialgleichungen:** RK4-Löser, Phasenporträts, seltsame Attraktoren als Funktionen
+- ⬜ **Fraktale:**
+  - Mandelbrot- und Julia-Mengen (auch als Shader)
+  - IFS und Fractal Flames
+  - Newton-Fraktale
+- ⬜ **Komplexe Funktionen:** Domain Coloring
+
+### III – Weitere Algorithmen (Ergänzung zu B)
+
+- ⬜ Physarum (Schleimpilz-Simulation)
+- ⬜ Langtons Ameise und Turmiten
+- ⬜ Aquarell-Simulation (geschichtete, verformte Polygone)
+- ⬜ Glitch-Baukasten:
+  - Pixel-Sortierung als Funktion
+  - Kanalverschiebung, Slit-Scan
+  - JPEG- und Daten-Glitch, Datamosh
+- ⬜ „Pixel-Noise-Malerei“
+- ⬜ Kleinformat-Plots: Postkarte, A6, Visitenkarte; Presets für feine Stifte
+
+### IV – Wissen & Ressourcen (r/generative-Wiki)
+
+- ⬜ `docs/ressourcen.md`: kuratierte Lernliste (Bücher, Tutorials, Communities) mit Links
+- ⬜ Werkzeug-Landkarte mit Brücken zu plotart, über OSC, Dateien oder Vorlagen:
+  - Processing, openFrameworks, Nannou (Rust), Three.js
+  - Houdini
+  - SuperCollider, TidalCycles, VCV Rack
+
+### Offene Fragen
+
+- ⬜ Zwei Reddit-Beiträge (r/generative) konnten nicht geöffnet werden. Beschreibung oder Screenshot nötig, um sie gezielt umzusetzen.
+
 ## ⬜ Website-Anbindung (eigene Website des Künstlers)
 
 - ⬜ Serien und Favoriten als **Galerie-Paket** exportieren:
