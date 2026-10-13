@@ -61,6 +61,70 @@ Gemeinsam für alle Sprachen: Seed, Regler (`param`), Varianten, Favoriten, Expo
   - Houdini
   - SuperCollider, TidalCycles, VCV Rack
 
+### V – Morphogenese (nach jasonwebb/morphogenesis-resources)
+
+Schon vorhanden: DLA, Differential Growth, L-Systeme, Reaktion-Diffusion, Space Colonization, Zellautomaten, Boids, Verlet/Stoff, Delaunay/Voronoi, Lloyd, Marching Squares, WFC, Flow Fields.
+
+- ⬜ **Wachstum:**
+  - Dielectric Breakdown (Lichtenberg-Figuren)
+  - Eden-Wachstum
+  - Particle Life
+  - Primordial Particle System
+  - Physarum
+  - Spinodale Entmischung (Cahn-Hilliard)
+- ⬜ **Kontinuierliche Automaten:** Lenia, SmoothLife
+- ⬜ **Mathe & Physik:**
+  - Phyllotaxis (goldener Winkel)
+  - Fourier-Reihen
+  - Chladni-Figuren (Cymatik)
+  - Metaballs und Signed Distance Fields
+  - Perkolation
+  - Kinematik (Arme, Ketten, Tentakel)
+  - Medial-Achse (Skelett einer Form)
+- ⬜ **Code-Muster:**
+  - gewichtetes Voronoi-Stippling
+  - Fluid-Simulation
+  - Soft-Body-Physik
+  - Polygon-Clipping und CSG
+  - Kollisionen, Metaballs
+- ⬜ **3D-Morphogenese:**
+  - Marching Cubes (Isoflächen)
+  - Laplace-Glättung von Meshes
+  - Polyeder und Conway-Operatoren
+  - Geodätische Kuppeln
+  - Minimalflächen
+- ⬜ Lern-Abschnitt in `docs/ressourcen.md` mit den Original-Papers und Links
+
+### VI – Processing-Bibliotheken als plotart-Gegenstücke
+
+Ziel: Was diese Bibliotheken in Processing können, soll es in plotart auch geben, mit ähnlicher Bedienung.
+
+- ⬜ **Geomerative** (Schrift und Vektorformen):
+  - Schrift-Konturen in Punkte und Segmente zerlegen, gleichmäßig neu abtasten
+  - Punkte auf Pfaden, Pfade teilen
+  - Formen aus SVG verändern
+  - „Caligraft“-artige wachsende Schrift
+- ⬜ **toxiclibs:**
+  - *verletphysics:* 3D-Physik, Verhalten (Anziehung, Schwerkraft-Zonen), Federnetze
+  - *geom:* Meshes, Unterteilung, Splines, Wellen-Generatoren
+  - *volumeutils:* Voxel, Isoflächen
+  - *colorutils:* Farbharmonien, Farbtheorie, Sortieren, Farblisten-Strategien
+- ⬜ **HE_Mesh:** Mesh-Modellierung mit Unterteilen, Extrudieren, Gittern und Conway-Operatoren; Export als GLB/OBJ
+- ⬜ **HYPE:**
+  - Layouts: Raster, Kreis, Schwarm, Form
+  - Oszillatoren, Farb-Pools
+  - Tweens und Proxy-Objekte
+- ⬜ **Weitere:**
+  - Box2D (Starrkörper-Physik)
+  - Mesh (Lee Byron: Voronoi, Delaunay, Hülle)
+  - Ani (Tweening)
+  - PostFX (Nachbearbeitung, gibt es schon über Shader)
+- ✅ Schon abgedeckt:
+  - PeasyCam → `orbit_control()`
+  - ControlP5 → `param()`-Regler
+  - Minim/Sound → `load_audio()`
+- ⬜ Spickzettel „Von Processing zu plotart“: welche Bibliotheksfunktion welcher plotart-Funktion entspricht
+
 ### Offene Fragen
 
 - ⬜ Zwei Reddit-Beiträge (r/generative) konnten nicht geöffnet werden. Beschreibung oder Screenshot nötig, um sie gezielt umzusetzen.
