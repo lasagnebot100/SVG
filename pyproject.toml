@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plotart"
-version = "1.11.0"
+version = "1.12.0"
 description = "Generative Kunst mit Python – p5-ähnliche Skizzen-Sprache, Live-Studio, SVG/PNG/Plotter-Export"
 requires-python = ">=3.11"
 readme = "README.md"
@@ -16,6 +16,8 @@ full = ["Pillow", "numpy", "imageio-ffmpeg", "shapely", "moderngl"]
 geometry = ["shapely"]
 gpu = ["moderngl"]
 video = ["Pillow", "imageio-ffmpeg"]
+live = ["LinkPython-extern", "ndi-python", "numpy", "Pillow"]
+spout = ["SpoutGL; sys_platform == 'win32' and python_version < '3.14'", "moderngl", "numpy", "Pillow"]
 
 [project.scripts]
 plotart = "plotart.cli:main"

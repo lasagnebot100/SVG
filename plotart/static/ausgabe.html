@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>plotart – Ausgabe</title>
+<style>
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body.idle { cursor: none; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #hint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: 90vw;
+          font: 14px/1.5 system-ui, sans-serif; color: #ddd; background: rgba(20, 20, 24, .8);
+          padding: 10px 16px; border-radius: 10px; text-align: center; transition: opacity .5s; }
+  body.idle #hint { opacity: 0; }
+  kbd { font: inherit; border: 1px solid #666; border-radius: 4px; padding: 0 5px; }
+</style>
+</head>
+<body>
+<canvas id="out"></canvas>
+<div id="hint"><span id="status">Warte auf das Studio …</span><br>
+  <kbd>F</kbd> oder Doppelklick: Vollbild <span id="otherScreen" hidden>· <kbd>S</kbd>: Vollbild auf dem anderen Bildschirm</span>
+  · <kbd>Esc</kbd>: Vollbild beenden</div>
+<script>
+// Mirrors the Studio canvas in full resolution: the Studio posts every frame as SVG over a
+// BroadcastChannel ("plotart-ausgabe"); this page draws it to fit the window (letterboxed).
+const canvas = document.getElementById("out"), ctx = canvas.getContext("2d");
+const chan = new BroadcastChannel("plotart-ausgabe");
+let sheet = { w: 800, h: 800 }, last = null, queue = [], busy = false;
+
+function fit() {
+  const s = Math.min(canvas.width / sheet.w, canvas.height / sheet.h);
+  const w = sheet.w * s, h = sheet.h * s;
+  return [(canvas.width - w) / 2, (canvas.height - h) / 2, w, h];
+}
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(innerWidth * dpr); canvas.height = Math.round(innerHeight * dpr);
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (last) ctx.drawImage(last, ...fit());             // accumulated frames are lost on resize – keep the last image
+}
+addEventListener("resize", resize);
+resize();
+
+function decode(src, isSvg) {
+  return new Promise((resolve, reject) => {
+    const url = isSvg ? URL.createObjectURL(new Blob([src], { type: "image/svg+xml" })) : src;
+    const img = new Image();
+    img.onload = () => { if (isSvg) URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { if (isSvg) URL.revokeObjectURL(url); reject(new Error("Bild nicht lesbar")); };
+    img.src = url;
+  });
+}
+async function drain() {
+  if (busy) return;
+  busy = true;
+  while (queue.length) {
+    const m = queue.shift();
+    try {
+      if (m.w && m.h) sheet = { w: m.w, h: m.h };
+      const img = await decode(m.svg || m.url, !!m.svg);
+      const r = fit();
+      if (m.clears !== false) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+      ctx.drawImage(img, ...r);
+      last = img;
+    } catch (e) { /* skip broken frames */ }
+  }
+  busy = false;
+}
+chan.onmessage = (e) => {
+  const m = e.data || {};
+  if (m.type === "ping") { chan.postMessage({ type: "hello" }); return; }   // the Studio was (re)loaded
+  if (m.type !== "frame" && m.type !== "still" && m.type !== "image") return;
+  document.getElementById("status").textContent = "Verbunden mit dem Studio";
+  if (m.clears !== false) queue = [];     // a frame that clears the canvas makes everything queued before it obsolete
+  queue.push(m);
+  if (queue.length > 120) queue = queue.slice(-120);
+  drain();
+};
+chan.postMessage({ type: "hello" });
+addEventListener("beforeunload", () => chan.postMessage({ type: "bye" }));
+
+// ---- fullscreen, idle cursor
+function fullscreen(screen) {
+  if (document.fullscreenElement) return document.exitFullscreen();
+  return document.documentElement.requestFullscreen(screen ? { screen } : undefined).catch(() => {});
+}
+async function fullscreenOtherScreen() {
+  try {
+    const d = await window.getScreenDetails();
+    const other = d.screens.find(s => s !== d.currentScreen) || d.currentScreen;
+    if (document.fullscreenElement) await document.exitFullscreen();
+    await document.documentElement.requestFullscreen({ screen: other });
+  } catch (e) { fullscreen(); }
+}
+if ("getScreenDetails" in window) document.getElementById("otherScreen").hidden = false;
+addEventListener("dblclick", () => fullscreen());
+addEventListener("keydown", (e) => {
+  if (e.key === "f" || e.key === "F") fullscreen();
+  else if ((e.key === "s" || e.key === "S") && "getScreenDetails" in window) fullscreenOtherScreen();
+});
+let idleTimer = null;
+function wake() {
+  document.body.classList.remove("idle");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => document.body.classList.add("idle"), 2500);
+}
+addEventListener("mousemove", wake);
+addEventListener("keydown", wake);
+wake();
+</script>
+</body>
+</html>

@@ -209,6 +209,7 @@ def build(out: Path, pyodide_url: str) -> Path:
             raise SystemExit(f"{src} hat nicht die erwartete Struktur")
         html = html.replace("</head>", "\n".join(head) + "\n</head>", 1)
         (out / dst).write_text(html, encoding="utf-8")
+    shutil.copy2(STATIC / "ausgabe.html", out / "ausgabe.html")    # output window: no Python needed
 
     vendor = out / "vendor"
     vendor.mkdir(exist_ok=True)

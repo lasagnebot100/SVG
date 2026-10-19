@@ -7,8 +7,11 @@ every frame, styles persist (like p5).
 """
 from __future__ import annotations
 
+import ast
 import io
+import math
 import time
+import types
 from contextlib import redirect_stderr, redirect_stdout
 
 from .color import Color, Gradient
@@ -42,6 +45,66 @@ class _Event(dict):
     __getattr__ = dict.get
 
 
+# ---------------------------------------------------------------------------- live coding (hot swap)
+_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef, ast.ListComp, ast.SetComp,
+           ast.DictComp, ast.GeneratorExp)
+
+
+def _bound_names(stmt: ast.stmt) -> set[str]:
+    """Names a top-level statement binds in the module namespace."""
+    if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {stmt.name}
+    if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+        return {(a.asname or a.name).split(".")[0] for a in stmt.names if a.name != "*"}
+    names, todo = set(), [stmt]
+    while todo:
+        node = todo.pop()
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, _SCOPES):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    names.add(child.name)
+                continue
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+                names.add(child.id)
+            todo.append(child)
+    return names
+
+
+def _statements(source: str) -> list[tuple[str, set, set, bool, bool]]:
+    """(fingerprint, bound names, read names, calls param(), is a def/class) per top-level statement."""
+    out = []
+    for st in ast.parse(source).body:
+        is_def = isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        reads = set() if is_def else {n.id for n in ast.walk(st) if isinstance(n, ast.Name)
+                                      and isinstance(n.ctx, ast.Load)}
+        has_param = any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "param"
+                        for n in ast.walk(st))
+        out.append((ast.dump(st), _bound_names(st), reads, has_param, is_def))
+    return out
+
+
+def _rebind(fn: types.FunctionType, ns: dict) -> types.FunctionType:
+    new = types.FunctionType(fn.__code__, ns, fn.__name__, fn.__defaults__, fn.__closure__)
+    new.__kwdefaults__ = fn.__kwdefaults__
+    new.__dict__.update(fn.__dict__)
+    new.__qualname__ = fn.__qualname__
+    return new
+
+
+def _rebind_class(cls: type, old: dict, ns: dict):
+    """Methods of a class defined in the sandbox namespace look up globals in the live namespace."""
+    for attr, v in list(vars(cls).items()):
+        if isinstance(v, types.FunctionType) and v.__globals__ is old:
+            setattr(cls, attr, _rebind(v, ns))
+        elif isinstance(v, (staticmethod, classmethod)) and isinstance(v.__func__, types.FunctionType) \
+                and v.__func__.__globals__ is old:
+            setattr(cls, attr, type(v)(_rebind(v.__func__, ns)))
+        elif isinstance(v, property):
+            parts = [_rebind(f, ns) if isinstance(f, types.FunctionType) and f.__globals__ is old else f
+                     for f in (v.fget, v.fset, v.fdel)]
+            setattr(cls, attr, property(*parts, v.__doc__))
+
+
 class Frame:
     __slots__ = ("index", "items", "clears", "log", "error", "ms", "meshes")
 
@@ -65,6 +128,8 @@ class Animation:
         self._input = dict(INPUT_DEFAULTS)
         self._events: list = []
         self._live_input = False
+        self._tempo = None             # live clock from the Studio: {"bpm", "beat"}
+        self._last_beat = None         # for on_beat()
         self.sk = sk = Sketch(seed, params)
         sk.apply_keys(1)
         self.ns = ns = build_namespace(sk)
@@ -75,8 +140,10 @@ class Animation:
         _seed_libraries(sk.seed, source)
         ns.update(frame_count=1, t=0.0, time=0.0, frames=sk.anim_frames, fps=sk.anim_fps)
         buf = io.StringIO()
+        self._stmts: list = []           # top-level statements, for hot_swap()
         try:
             code = compile(source, SKETCH_FILE, "exec")
+            self._stmts = _statements(source)
             with redirect_stdout(buf), redirect_stderr(buf):
                 exec(code, ns)
                 setup = ns.get("setup")
@@ -126,8 +193,38 @@ class Animation:
         self._live_input = True
         if state:
             self._input.update({k: v for k, v in state.items() if k in INPUT_DEFAULTS or k == "midi"})
+            tempo = state.get("tempo")
+            if isinstance(tempo, dict) and "bpm" in tempo and "beat" in tempo:
+                self._tempo = {"bpm": float(tempo["bpm"]), "beat": float(tempo["beat"])}
+            elif "tempo" in state:
+                self._tempo = None
         if events:
             self._events.extend(events)
+
+    def _apply_tempo(self, i: int):
+        """bpm, beat, beat_phase, bar for frame i: the live clock if the Studio sends one, else from time."""
+        sk = self.sk
+        if self._tempo is not None:
+            bpm, beat = self._tempo["bpm"], self._tempo["beat"]
+        else:
+            bpm = sk.bpm
+            beat = i / self.fps * bpm / 60.0
+        sk.beat = beat
+        values = {"bpm": bpm, "beat": beat, "beat_phase": beat % 1.0, "bar": int(beat // sk.beats_per_bar)}
+        user = {n for s in self._stmts for n in s[1]}       # never overwrite the sketch's own variables
+        self.ns.update({k: v for k, v in values.items() if k not in user})
+        whole = math.floor(beat)
+        if self._last_beat is None:
+            self._last_beat = whole - 1 if beat - whole < 1e-9 else whole
+        if whole > self._last_beat:
+            self._last_beat = whole
+            fn = self.ns.get("on_beat")
+            if callable(fn):
+                try:
+                    takes_arg = fn.__code__.co_argcount > 0
+                except AttributeError:
+                    takes_arg = False
+                fn(whole) if takes_arg else fn()
 
     def _apply_input(self, i: int):
         sk, ns = self.sk, self.ns
@@ -176,6 +273,62 @@ class Animation:
                 "width": self.sk.width, "height": self.sk.height, "unit": self.sk.unit,
                 "params": [p.to_json() for p in self.sk.param_specs]}
 
+    # -------------------------------------------------------------- live coding
+    def hot_swap(self, source: str, refresh_params: bool = False) -> dict:
+        """Take over changed code while running – the state (variables, frame_count) stays.
+
+        The new code runs once in a sandbox. Functions and classes are replaced; a top-level variable
+        is only replaced when its statement changed, reads a replaced variable or (refresh_params=True)
+        calls param(). setup() does not run again.
+        → {"ok": True} · {"restart": True} (canvas size changed) · {"error": {…}} (old code keeps running)
+        """
+        try:
+            code = compile(source, SKETCH_FILE, "exec")
+            stmts = _statements(source)
+        except SyntaxError as exc:
+            return {"error": _error_info(exc)}
+        sk2 = Sketch(self.sk.seed, dict(self.sk._param_values))
+        sk2._param_keys = self.sk._param_keys
+        sk2.apply_keys(1)
+        sandbox = build_namespace(sk2)
+        sk2.ns = sandbox
+        sandbox.update(frame_count=1, t=0.0, time=0.0, frames=sk2.anim_frames, fps=sk2.anim_fps)
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf), redirect_stderr(buf):
+                exec(code, sandbox)
+        except Exception as exc:
+            return {"error": _error_info(exc)}
+        sk2.finalize_timing()
+        if (sk2.width, sk2.height, sk2.unit) != (self.sk.width, self.sk.height, self.sk.unit):
+            return {"restart": True}
+        old = {s[0] for s in self._stmts}
+        changed: set[str] = set()
+        for fp, bound, reads, has_param, _ in stmts:
+            if fp not in old or reads & changed or (refresh_params and has_param):
+                changed |= bound
+        ns = self.ns
+        for _fp, bound, _reads, _p, _is_def in stmts:
+            for name in bound:
+                if name not in sandbox:
+                    continue
+                value = sandbox[name]
+                if isinstance(value, types.FunctionType) and value.__globals__ is sandbox:
+                    ns[name] = _rebind(value, ns)
+                elif isinstance(value, type) and name in changed:
+                    _rebind_class(value, sandbox, ns)
+                    ns[name] = value
+                elif name in changed:
+                    ns[name] = value
+        self.source, self._stmts = source, stmts
+        self.draw = ns.get("draw") if callable(ns.get("draw")) else None
+        self.sk.param_specs = sk2.param_specs
+        self.sk.bpm = sk2.bpm
+        self.fps = self.sk.anim_fps = sk2.anim_fps
+        self.error = None
+        self.log = buf.getvalue()[:MAX_LOG]
+        return {"ok": True}
+
     # -------------------------------------------------------------- stepping
     def next_frame(self) -> Frame | None:
         """Produce the next frame, or None when finished / after an error."""
@@ -199,6 +352,7 @@ class Animation:
             try:
                 with redirect_stdout(buf), redirect_stderr(buf):
                     self._apply_input(i)
+                    self._apply_tempo(i)
                     self.draw()
                     if sk._shape is not None:
                         sk.end_shape()

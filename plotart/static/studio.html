@@ -65,10 +65,10 @@
   .busy.on { opacity: 1; }
   .busy .btn { font-size: 11px; padding: 2px 8px; margin-left: 6px; }
   /* timeline */
-  .timeline { display: none; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+  .timeline { display: none; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--panel); }
   .timeline.on { display: flex; }
   .timeline .btn { padding: 4px 9px; }
-  .scrub { flex: 1; position: relative; height: 22px; display: flex; align-items: center; }
+  .scrub { flex: 1 1 140px; position: relative; height: 22px; display: flex; align-items: center; }
   .scrub .buf { position: absolute; left: 0; right: 0; height: 4px; border-radius: 2px; background: #e8e7e2; overflow: hidden; }
   .scrub .buf i { display: block; height: 100%; width: 0; background: #c8d6ef; }
   .scrub input { position: relative; width: 100%; margin: 0; accent-color: var(--accent); background: transparent; }
@@ -164,6 +164,10 @@
 #animView.live{cursor:crosshair;outline:2px solid #1f5fbf;outline-offset:2px}
 #animView:focus{outline:none}#animView.live:focus{outline:2px solid #1f5fbf}
 #tlRec.rec{color:#d02020;animation:blink 1s infinite}@keyframes blink{50%{opacity:.4}}
+  .livebar { border-top: none; padding-top: 0; }
+  #tlBpm { width: 66px; padding: 3px 4px; font-size: 12px; }
+  .beatdot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: none; }
+  .beatdot.hit { background: var(--accent); }
 body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px;cursor:pointer}
 .field.learning{outline:2px solid #e09000!important;background:#fff6e0}
 [hidden]{display:none!important}
@@ -223,6 +227,24 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
       <button class="btn" id="tlLive" title="Interaktiv: Maus, Tastatur und MIDI steuern die Skizze live (I)">🎮 Interaktiv</button>
       <button class="btn" id="tlRec" title="Eingaben aufnehmen – die Aufnahme wird in Vorschau und Video-Export abgespielt">⏺</button>
       <button class="btn" id="tlRecInfo" title="Aufnahme verwerfen" hidden></button>
+      <button class="btn" id="tlOut" title="Ausgabefenster für Beamer oder zweiten Bildschirm (dort Vollbild mit F oder Doppelklick)">📺 Ausgabe</button>
+    </div>
+    <div class="timeline livebar" id="liveBar">
+      <button class="btn on" id="tlHot" title="Live-Coding: Code-Änderungen übernehmen, ohne neu zu starten – Variablen und frame_count bleiben">♻ Live-Code</button>
+      <button class="btn" id="tlRestart" title="Skizze neu starten (setup() läuft wieder)">↺ Neustart</button>
+      <span class="sep"></span>
+      <select id="tlClock" title="Woher der Takt kommt (bpm, beat, on_beat)">
+        <option value="skizze">Takt: Skizze</option><option value="tap">Takt: Tap</option>
+        <option value="link" class="desktop-only">Takt: Ableton Link</option></select>
+      <input type="number" id="tlBpm" min="20" max="300" step="0.1" value="120" title="Tempo in BPM">
+      <button class="btn" id="tlTap" title="Im Takt klicken (Taste T, wenn die Leinwand nicht aktiv ist)">Tap</button>
+      <span class="beatdot" id="tlBeat" title="Schlag"></span>
+      <span class="fcount" id="tlTempoInfo"></span>
+      <span class="sep desktop-only"></span>
+      <select id="tlVideo" class="desktop-only" title="Bild live an andere Programme senden: NDI (OBS, Resolume, TouchDesigner, vMix) oder Spout (Windows)">
+        <option value="">Video: aus</option><option value="ndi">Video: NDI „plotart“</option><option value="spout">Video: Spout „plotart“</option></select>
+      <select id="tlVideoRes" class="desktop-only" title="Breite des gesendeten Bildes in Pixeln">
+        <option value="960">960 px</option><option value="1280" selected>1280 px</option><option value="1920">1920 px</option></select>
     </div>
     <div class="status" id="status">–</div>
   </section>
@@ -434,6 +456,7 @@ function onCodeChange() {
   clearErrorLine();
   persist();
   updateFileLabel();
+  liveCodeChanged();
   if (state.live) { clearTimeout(codeTimer); codeTimer = setTimeout(() => run(0), 550); }
 }
 function clearErrorLine() {
@@ -499,7 +522,7 @@ async function runNow() {
     updateConcept(getCode());
     if (res.animated) {
       startAnimation(res);
-      if (live.on) { stopAnimation(false); setPlaying(false); live.restart = true; }
+      if (live.on) { stopAnimation(false); setPlaying(false); if (!live.hot) live.restart = true; }
       else if (res.interactive && !state.hintedLive) {
         state.hintedLive = true;
         appendLog("\nTipp: Diese Skizze reagiert auf Maus/Tastatur – 🎮 Interaktiv (Taste I) einschalten.", "muted");
@@ -508,6 +531,7 @@ async function runNow() {
       if (live.on) stopLive(true);
       stopAnimation(true);
       $("svgView").innerHTML = res.svg.replace(/^<\?xml[^>]*>\s*/, "");
+      toOutput({ type: "still", svg: res.svg });
     }
     fitSheet();
     const dims = `${fmtNum(res.width)} × ${fmtNum(res.height)} ${res.unit}`;
@@ -644,6 +668,7 @@ async function paint(i) {
   const img = await decode(f.svg);
   if (f.clears || i === 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  toOutput({ type: "frame", svg: f.svg, clears: f.clears || i === 0 });
   // snapshots for fast seeking in animations that accumulate (no full clear)
   if (!f.clears && i % 24 === 0 && anim.checkpoints.size < 60 && window.createImageBitmap) {
     anim.checkpoints.set(i, await createImageBitmap(canvas));
@@ -669,6 +694,7 @@ async function redrawTo(n) {
   if (best >= 0) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(anim.checkpoints.get(best), 0, 0);
+    if (out.viewers > 0) toOutput({ type: "image", url: canvas.toDataURL(), clears: true });
     start = best + 1;
   }
   for (let i = start; i <= n; i++) await paint(i);
@@ -904,8 +930,20 @@ $("exp3d").onclick = async (ev) => {
 // ================================================================== interactive (live) mode
 // One frame per request with the current mouse/keyboard/MIDI state – like p5's draw loop.
 const live = { on: false, gen: 0, restart: true, events: [], recording: null, midi: {},
+  hot: true, source: null, codeTimer: null, lastErr: null, swapFlash: 0,
   input: { mouse_x: 0, mouse_y: 0, mouse_is_pressed: false, mouse_button: null, key: "", key_code: 0,
            key_is_pressed: false, wheel: 0 } };
+// tempo for bpm/beat/on_beat(): "skizze" = tempo() of the sketch, "tap" = clock in the Studio, "link" = Ableton Link (server)
+const tempo = { clock: "skizze", bpm: 120, anchor: performance.now(), anchorBeat: 0, taps: [], lastWhole: null };
+try {
+  const saved = JSON.parse(localStorage.getItem("plotart-live") || "{}");
+  if (typeof saved.hot === "boolean") live.hot = saved.hot;
+  if (saved.clock) tempo.clock = saved.clock;
+  if (saved.bpm) tempo.bpm = saved.bpm;
+} catch (e) {}
+function persistLive() {
+  try { localStorage.setItem("plotart-live", JSON.stringify({ hot: live.hot, clock: tempo.clock, bpm: tempo.bpm })); } catch (e) {}
+}
 canvas.tabIndex = 0;
 
 function canvasPos(e) {
@@ -959,9 +997,9 @@ canvas.addEventListener("keyup", (e) => {
 
 function startLive() {
   if (!state.animated) { toast("Interaktiv geht mit animierten Skizzen (mit draw())"); return; }
-  live.on = true; live.gen++; live.restart = true; live.events = [];
+  live.on = true; live.gen++; live.restart = true; live.events = []; live.source = getCode(); live.lastErr = null;
   stopAnimation(false); setPlaying(false);
-  $("tlLive").classList.add("on"); canvas.classList.add("live");
+  $("tlLive").classList.add("on"); canvas.classList.add("live"); $("liveBar").classList.add("on");
   canvas.focus();
   liveLoop(live.gen);
 }
@@ -969,21 +1007,88 @@ function stopLive(silentStop) {
   if (!live.on) return;
   live.on = false; live.gen++;
   if (live.recording) finishRecording();
-  $("tlLive").classList.remove("on"); canvas.classList.remove("live");
+  $("tlLive").classList.remove("on"); canvas.classList.remove("live"); $("liveBar").classList.remove("on");
   syncAudio(0, false);
   if (!silentStop) run(0);                // back to the normal (recorded/replayed) player
 }
 $("tlLive").onclick = () => live.on ? stopLive() : startLive();
 
+// ---- live coding: code changes reach the running sketch without a restart (♻), ↺ starts it over
+function updateLiveButtons() {
+  $("tlHot").classList.toggle("on", live.hot);
+  $("tlClock").value = tempo.clock;
+  $("tlBpm").value = Math.round(tempo.bpm * 10) / 10;
+  $("tlBpm").disabled = tempo.clock !== "tap";
+  $("tlTap").disabled = tempo.clock === "link";
+}
+$("tlHot").onclick = () => { live.hot = !live.hot; persistLive(); updateLiveButtons();
+  toast(live.hot ? "Live-Code: Änderungen werden ohne Neustart übernommen" : "Live-Code aus: jede Änderung startet neu"); };
+$("tlRestart").onclick = () => { live.source = getCode(); live.restart = true; tempo.lastWhole = null; };
+function liveCodeChanged() {
+  if (!live.on) return;
+  clearTimeout(live.codeTimer);
+  live.codeTimer = setTimeout(() => { live.source = getCode(); }, 450);
+}
+
+// ---- tempo: tap tempo or Ableton Link; the sketch sees bpm, beat, beat_phase, bar and on_beat()
+function tempoBeat(now = performance.now()) { return tempo.anchorBeat + (now - tempo.anchor) / 60000 * tempo.bpm; }
+function setBpm(bpm) {
+  const b = tempoBeat();
+  tempo.bpm = Math.max(20, Math.min(300, bpm || 120));
+  tempo.anchor = performance.now(); tempo.anchorBeat = b;
+  persistLive(); updateLiveButtons();
+}
+function tap() {
+  const now = performance.now();
+  if (tempo.clock !== "tap") { tempo.clock = "tap"; tempo.anchor = now; tempo.anchorBeat = 0; }
+  tempo.taps = tempo.taps.filter(t => now - t < 2500);
+  tempo.taps.push(now);
+  if (tempo.taps.length >= 2) tempo.bpm = Math.max(20, Math.min(300,
+    60000 * (tempo.taps.length - 1) / (tempo.taps[tempo.taps.length - 1] - tempo.taps[0])));
+  tempo.anchorBeat = Math.round(tempoBeat(now)); tempo.anchor = now;     // the tap lands on a beat
+  persistLive(); updateLiveButtons();
+}
+$("tlTap").onclick = tap;
+$("tlBpm").onchange = () => setBpm(parseFloat($("tlBpm").value));
+$("tlClock").onchange = () => { tempo.clock = $("tlClock").value; tempo.lastWhole = null; persistLive(); updateLiveButtons(); };
+function tempoPayload() {
+  if (tempo.clock === "tap") return { bpm: tempo.bpm, beat: tempoBeat() };
+  if (tempo.clock === "link") return { link: true };
+  return null;
+}
+function showBeat(t) {
+  if (!t) return;
+  const whole = Math.floor(t.beat);
+  if (tempo.lastWhole !== null && whole !== tempo.lastWhole) {
+    $("tlBeat").classList.add("hit"); setTimeout(() => $("tlBeat").classList.remove("hit"), 110);
+  }
+  tempo.lastWhole = whole;
+  const info = `${fmtNum(Math.round(t.bpm * 10) / 10)} BPM · Takt ${t.bar + 1} · ${(whole % t.beats_per_bar) + 1}`;
+  $("tlTempoInfo").textContent = t.peers != null ? `${info} · Link: ${t.peers} ${t.peers === 1 ? "Gerät" : "Geräte"}` : info;
+  if (tempo.clock !== "tap" && Math.abs(t.bpm - tempo.bpm) > 0.05) { tempo.bpm = t.bpm; updateLiveButtons(); }
+}
+updateLiveButtons();
+
+function showLiveError(e) {
+  const key = `${e.line}|${e.message}`;
+  if (key === live.lastErr) return;
+  live.lastErr = key;
+  appendLog(`${e.line ? "Zeile " + e.line + ": " : ""}${e.message}` +
+            (live.hot ? " – die letzte funktionierende Fassung läuft weiter\n" : "\n"), "err");
+  markErrorLine(e.line);
+}
+
 async function liveLoop(gen) {
   while (live.on && gen === live.gen) {
     const t0 = performance.now();
     const events = live.events; live.events = [];
-    const input = { ...live.input, midi: { ...live.midi } };
+    const input = { ...live.input, midi: { ...live.midi }, tempo: tempoPayload() };
     live.input.wheel = 0;
     let r;
     try {
-      r = await backend.call("anim_live", { ...sketchPayload(), input, events, restart: live.restart });
+      const video = { kind: $("tlVideo").value || null, width: parseInt($("tlVideoRes").value, 10) };
+      r = await backend.call("anim_live", { ...sketchPayload(), source: live.source ?? getCode(), hot: live.hot,
+                                            input, events, restart: live.restart, video });
     } catch (e) {
       if (gen === live.gen && e.message !== "Abgebrochen" && e.message !== "veraltet") { appendLog(e.message + "\n", "err"); stopLive(true); }
       return;
@@ -992,17 +1097,30 @@ async function liveLoop(gen) {
     if (gen !== live.gen) return;
     if (r.info && r.info.log) appendLog(r.info.log);
     if (r.log) appendLog(r.log);
+    if (r.link_error) {
+      appendLog(r.link_error + " – Takt kommt wieder aus der Skizze\n", "err");
+      tempo.clock = "skizze"; persistLive(); updateLiveButtons();
+    }
+    if (r.video_error) { appendLog(r.video_error + " – Videoausgang ist wieder aus\n", "err"); $("tlVideo").value = ""; }
+    if (r.swapped) { live.lastErr = null; clearErrorLine(); live.swapFlash = 20; }
+    if (r.hot_error) showLiveError(r.hot_error);
     if (r.sketch_error) {
-      const e = r.sketch_error;
-      appendLog(`${e.line ? "Zeile " + e.line + ": " : ""}${e.message}\n`, "err");
-      markErrorLine(e.line); stopLive(true); return;
+      showLiveError(r.sketch_error);
+      if (!live.hot) { stopLive(true); return; }
+      await new Promise(res => setTimeout(res, 250));           // wait for a fix in the code
+      continue;
     }
     if (r.frame) {
+      if (live.lastErr && !r.hot_error) { live.lastErr = null; clearErrorLine(); }
+      showBeat(r.tempo);
       const img = await decode(r.frame.svg);
       if (gen !== live.gen) return;
       if (r.frame.clears || r.frame.index === 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      $("tlCount").textContent = `live · ${r.frame.index + 1}` + (live.recording ? ` · ⏺ ${live.recording.length + 1}` : "");
+      toOutput({ type: "frame", svg: r.frame.svg, clears: r.frame.clears || r.frame.index === 0 });
+      if (live.swapFlash > 0) live.swapFlash--;
+      $("tlCount").textContent = `live · ${r.frame.index + 1}` + (live.swapFlash ? " · ↻ übernommen" : "") +
+        (live.recording ? ` · ⏺ ${live.recording.length + 1}` : "");
       syncAudio(r.frame.index, true);
       if (live.recording) live.recording.push({ x: input.mouse_x, y: input.mouse_y, p: input.mouse_is_pressed ? 1 : 0,
         b: input.mouse_button, k: input.key, kc: input.key_code, kp: input.key_is_pressed ? 1 : 0, w: input.wheel,
@@ -1012,6 +1130,29 @@ async function liveLoop(gen) {
     if (wait > 0) await new Promise(res => setTimeout(res, wait));
   }
 }
+
+// ================================================================== output window (beamer, second screen)
+// ausgabe.html receives every frame as SVG and draws it in full resolution, fitted to its window.
+const out = { chan: "BroadcastChannel" in window ? new BroadcastChannel("plotart-ausgabe") : null, viewers: 0 };
+function toOutput(msg) {
+  if (out.chan && out.viewers > 0) out.chan.postMessage({ w: state.width, h: state.height, ...msg });
+}
+function sendCurrentToOutput() {
+  if (!state.animated && state.svg) toOutput({ type: "still", svg: state.svg });
+  else if (canvas.width) toOutput({ type: "image", url: canvas.toDataURL(), clears: true });
+}
+if (out.chan) {
+  out.chan.onmessage = (e) => {
+    const m = e.data || {};
+    if (m.type === "hello") { out.viewers++; sendCurrentToOutput(); }
+    else if (m.type === "bye") out.viewers = Math.max(0, out.viewers - 1);
+  };
+  out.chan.postMessage({ type: "ping" });          // output windows that are already open answer with "hello"
+}
+$("tlOut").onclick = () => {
+  if (!out.chan) { toast("Dieser Browser kann kein Ausgabefenster verbinden (BroadcastChannel fehlt)"); return; }
+  window.open("ausgabe.html", "plotart-ausgabe", "popup,width=960,height=600");
+};
 
 // recording: the frames' inputs become params.__input__ → preview and video export replay them
 function updateRecInfo() {
@@ -1410,6 +1551,7 @@ document.addEventListener("keydown", (e) => {
   const typing = inEditor || ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName);
   if (live.on && document.activeElement === canvas && !mod) return;     // keys go to the sketch
   if (!typing && !mod && e.key.toLowerCase() === "i" && state.animated) { e.preventDefault(); $("tlLive").click(); return; }
+  if (!typing && !mod && e.key.toLowerCase() === "t" && live.on && tempo.clock !== "link") { e.preventDefault(); tap(); return; }
   if (mod && e.key === "Enter") { e.preventDefault(); e.shiftKey ? newSeed() : run(0); }
   else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(e.shiftKey); }
   else if (mod && e.key.toLowerCase() === "o" && DESKTOP) { e.preventDefault(); $("files").focus(); $("files").showPicker?.(); }

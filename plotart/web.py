@@ -8,6 +8,7 @@ import os
 import queue
 import re
 import secrets
+import socket
 import threading
 import time
 import traceback
@@ -19,12 +20,14 @@ from urllib.parse import quote, unquote, urlparse
 from . import bridge
 from .sketch.worker import SketchWorker
 from .sketchfiles import SketchFileError, SketchFolder
+from .tempo import resolve_tempo
 
 STATIC = Path(__file__).parent / "static"
 OUTPUT_DIR = Path(os.environ.get("PLOTART_OUTPUT", "output"))
 
 PAGES = {"/": "studio.html", "/index.html": "studio.html", "/studio": "studio.html",
-         "/generatoren": "generators.html", "/generatoren.html": "generators.html"}
+         "/generatoren": "generators.html", "/generatoren.html": "generators.html",
+         "/ausgabe": "ausgabe.html", "/ausgabe.html": "ausgabe.html"}
 FILES = {"/vendor/codemirror.js": ("vendor/codemirror.js", "text/javascript; charset=utf-8"),
          "/vendor/codemirror.css": ("vendor/codemirror.css", "text/css; charset=utf-8")}
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -347,7 +350,13 @@ class Handler(BaseHTTPRequestHandler):
                 req["asset_dirs"] = [str(self.sketches.dir)]
                 if self.osc_in is not None:
                     req["osc"] = self.osc_in.snapshot()
+                link_error = resolve_tempo(req) if cmd == "anim_live" else None
+                peers = ((req.get("input") or {}).get("tempo") or {}).get("peers")
                 out = self.worker.call(cmd, req)
+                if link_error:
+                    out["link_error"] = link_error
+                elif peers is not None and isinstance(out.get("tempo"), dict):
+                    out["tempo"]["peers"] = peers
                 if self.osc_out is not None and out.get("osc_out"):
                     for address, values in out["osc_out"]:
                         try:
@@ -377,6 +386,21 @@ def _osc_to_studio(address: str, values: list):
         Handler.broadcast({"type": "live", "value": bool(v) if v is not None else True})
 
 
+class _IPv6Server(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+
+def _ipv6_loopback(port: int):
+    """Also answer on ::1. Browsers try IPv6 first for "localhost"; on Windows a refused ::1
+    connection costs about 300 ms – per request, which made the live mode crawl at 3 fps."""
+    try:
+        srv = _IPv6Server(("::1", port), Handler)
+    except OSError:                              # no IPv6 on this machine
+        return None
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
 def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
           timeout: float = 30.0, sketch_dir: str | Path = "skizzen",
           osc_in: int | None = None, osc_out: str | None = None):
@@ -393,7 +417,10 @@ def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
     Handler.sketches = SketchFolder(sketch_dir)
     Handler.token = None if host in LOCAL_HOSTS else secrets.token_urlsafe(12)
     httpd = ThreadingHTTPServer((host, port), Handler)
+    ipv6 = _ipv6_loopback(port) if host in ("127.0.0.1", "localhost") else None
     shown = "localhost" if host in LOCAL_HOSTS or host == "0.0.0.0" else host
+    if host in ("127.0.0.1", "localhost") and ipv6 is None:
+        shown = "127.0.0.1"                      # "localhost" would try ::1 first – slow on Windows
     url = f"http://{shown}:{port}/"
     if Handler.token:
         url += f"?token={Handler.token}"
@@ -410,6 +437,8 @@ def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
     except KeyboardInterrupt:
         print("\nBeendet.")
     finally:
+        if ipv6 is not None:
+            ipv6.server_close()
         Handler.worker.close()
         for job in Handler.jobs.values():
             job.cancel()

@@ -127,6 +127,10 @@ class Sketch:
         self.anim_frames = 120
         self.anim_fps = 30.0
         self.looping = True
+        # tempo for VJ work: tempo() sets bpm; in live mode the Studio sends its own clock (tap, Ableton Link)
+        self.bpm = 120.0
+        self.beats_per_bar = 4
+        self.beat = 0.0
 
     # ------------------------------------------------------------------ helpers
     def _c(self, args):
@@ -1038,6 +1042,20 @@ class Sketch:
             self.anim_frames = a.frames(self.anim_fps)
             self._update_ns(frames=self.anim_frames)
         return a
+
+    @api("Ton & Interaktion")
+    def tempo(self, bpm, beats_per_bar=4):
+        """Tempo für beat, beat_phase und on_beat(): tempo(128). Live gilt der Takt aus dem Studio (Tap, Ableton Link)."""
+        bpm = float(bpm)
+        if not 1 <= bpm <= 999:
+            raise SketchError("tempo(): bpm muss zwischen 1 und 999 liegen")
+        self.bpm = bpm
+        self.beats_per_bar = max(1, int(beats_per_bar))
+
+    @api("Ton & Interaktion")
+    def beat_pulse(self, sharpness=6.0):
+        """Lichtblitz im Takt: 1 genau auf dem Schlag, klingt bis zum nächsten ab (größer = kürzer)."""
+        return math.exp(-float(sharpness) * (self.beat % 1.0))
 
     @api("Ton & Interaktion")
     def osc(self, address, default=0.0):

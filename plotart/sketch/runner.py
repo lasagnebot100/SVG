@@ -102,7 +102,8 @@ def build_namespace(sk: Sketch) -> dict:
     ns.update(CONSTANTS)
     ns.update({"math": math, "Color": Color, "Gradient": Gradient,
                "width": int(sk.width), "height": int(sk.height), "seed": sk.seed,
-               "frame_count": 1, "t": 0.0, "time": 0.0, "frames": sk.anim_frames, "fps": sk.anim_fps})
+               "frame_count": 1, "t": 0.0, "time": 0.0, "frames": sk.anim_frames, "fps": sk.anim_fps,
+               "bpm": sk.bpm, "beat": 0.0, "beat_phase": 0.0, "bar": 0})
     set_input_vars(ns, {**INPUT_DEFAULTS, **sk.input})
     add_p5_aliases(ns, sk)
     return ns
@@ -168,6 +169,20 @@ def _error_info(exc: BaseException) -> dict:
     return {"message": f"{type(exc).__name__}: {exc}", "line": line, "trace": trace}
 
 
+def _first_beat(ns: dict, sk: Sketch, source: str):
+    """Frame 1 like in animation.Animation: bpm from tempo(), on_beat() for beat 0."""
+    from .animation import _statements
+    if "bpm" not in {n for s in _statements(source) for n in s[1]}:
+        ns["bpm"] = sk.bpm
+    fn = ns.get("on_beat")
+    if callable(fn):
+        try:
+            takes_arg = fn.__code__.co_argcount > 0
+        except AttributeError:
+            takes_arg = False
+        fn(0) if takes_arg else fn()
+
+
 def execute(source: str, params: dict | None = None, seed: int = 1) -> tuple[Sketch, str, dict | None, float]:
     """Run a sketch once (setup + first draw). Returns (sketch, output, error or None, ms).
 
@@ -195,6 +210,7 @@ def execute(source: str, params: dict | None = None, seed: int = 1) -> tuple[Ske
                         sk.reset_matrix()
                         sk._stack.clear()
                         sk.begin_frame3d()
+                        _first_beat(ns, sk, source)
                     fn()
             if sk._shape is not None:
                 sk.end_shape()
@@ -263,6 +279,10 @@ def api_reference() -> list[dict]:
         {"name": "time", "sig": "", "doc": "Zeit in Sekunden seit Beginn"},
         {"name": "frames", "sig": "", "doc": "Anzahl Bilder der Animation"},
         {"name": "fps", "sig": "", "doc": "Bilder pro Sekunde"},
+        {"name": "bpm", "sig": "", "doc": "Tempo in Schlägen pro Minute (tempo(), live: Tap oder Ableton Link)"},
+        {"name": "beat", "sig": "", "doc": "Schläge seit Beginn als Kommazahl (3.5 = Mitte des vierten Schlags)"},
+        {"name": "beat_phase", "sig": "", "doc": "Position im aktuellen Schlag 0 … 1"},
+        {"name": "bar", "sig": "", "doc": "Nummer des Takts (0, 1, 2 …)"},
     ]
     return [{"category": c, "entries": sorted(e, key=lambda x: x["name"])} for c, e in groups.items() if e]
 

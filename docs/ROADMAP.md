@@ -18,6 +18,7 @@ Vorher: 118 Tests unter Windows 11 und Python 3.14, davon 3 Fehlschläge und 1 F
 - ✅ **`pyproject.toml`:** `requires-python = ">=3.11"`.
 - ✅ **Web-Seiten-Export (gefunden bei Block II):** Der Worker-Code in `viewer.py` war seit 1.10.0 ungültig (`\(` im JS-Template-Literal), exportierte Seiten starteten nicht. Behoben in 1.11.0, mit Regressionstest.
 - ✅ **Umgeleitete Ausgabe unter Windows:** `plotart` und `tools/build_web.py` stürzten bei Ausgabe in Datei, Pipe oder CI-Log an „✓“ und „→“ ab (cp1252). Behoben in 1.11.0, mit Test.
+- ✅ **Studio über „localhost“ unter Windows (gefunden bei Block E):** jede Anfrage dauerte ~300 ms, weil der Browser zuerst IPv6 (`::1`) versucht; der Live-Modus lief mit 3 Bildern/s. Der Server antwortet jetzt auch auf `::1` – 2 ms pro Anfrage. Behoben in 1.12.0, mit Test.
 - ✅ **PNG-Export ohne Pillow:** freundliche Meldung „PNG-Export braucht Pillow: pip install Pillow“ statt Traceback; das SVG wird trotzdem geschrieben.
 - ⬜ **Offen:** `text_paths()` in der Browser-Version (Pyodide) hat keine Systemschriften. Eine freie Schrift (z. B. DejaVu Sans) mitliefern.
 
@@ -174,12 +175,14 @@ Ziel: Was diese Bibliotheken in Processing können, soll es in plotart auch gebe
 - ⬜ Galerie-Seite einer Serie (siehe Website-Anbindung)
 - ⬜ Großformat-Druck: auf mehrere Blätter aufteilen
 
-## ⬜ E – Live-Auftritt & VJ
+## ✅ E – Live-Auftritt & VJ (Version 1.12.0, Beispiele 60–61)
 
-- ⬜ Vollbild-Ausgabe auf einem zweiten Bildschirm oder Beamer
-- ⬜ Live-Coding ohne Neustart (der Zustand der Animation bleibt erhalten)
-- ⬜ Takt-Sync: Ableton Link, Tap-Tempo
-- ⬜ Video an andere Programme: Spout (Windows), Syphon (macOS), NDI
+- ✅ Vollbild-Ausgabe auf einem zweiten Bildschirm oder Beamer: `ausgabe.html` (📺 Ausgabe), scharf in voller Auflösung, Vollbild auf dem anderen Bildschirm per Window-Management-API
+- ✅ Live-Coding ohne Neustart: `Animation.hot_swap()`, Zustand bleibt, Tippfehler halten nichts an
+- ✅ Takt-Sync: `tempo()`, `bpm`, `beat`, `beat_phase`, `bar`, `on_beat()`, `beat_pulse()`; Tap-Tempo im Studio; Ableton Link über `plotart/tempo.py`
+- ✅ Video an andere Programme: NDI und Spout (`plotart/videoout.py`)
+- ⬜ Syphon (macOS) – fehlt noch, ohne Mac nicht testbar
+- ⬜ Spout unter Python 3.14 – sobald es SpoutGL-Pakete dafür gibt
 
 ## ⬜ F – Neue Eingaben
 

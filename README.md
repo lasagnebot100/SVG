@@ -23,6 +23,7 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Ton & Interaktion:** `load_audio()` mit Pegel, Spektrum, Bass/Mitten/Höhen und Beat-Erkennung, Ton im Video; Maus, Tastatur und MIDI live im Studio, Aufnahme der Eingaben für den Export
 - **3D in der Skizze:** `box()`, `sphere()`, `torus()`, `mesh()`, Kamera, Lichter, `orbit_control()`; Export als **glTF (.glb)/OBJ**, echte 3D-Objekte in Blender, **verdeckte Linien entfernen** für 3D-Plots
 - **TouchDesigner & OSC:** Studio per OSC fernsteuern, `osc()`/`osc_send()` in Skizzen, Skizzen als Live-Textur in einem Script TOP
+- **Live & VJ:** Live-Coding ohne Neustart (der Zustand bleibt), Takt mit `bpm`/`beat`/`on_beat()` aus Tap-Tempo oder Ableton Link, Ausgabefenster für den Beamer, Video live per NDI oder Spout an OBS, Resolume und TouchDesigner
 - **Algorithmic-Art-Workflow:** Konzept als Docstring, Seed-Navigation ◀ ▶, jede Skizze als **eigenständige Web-Seite** teilen
 - **p5.js/py5-kompatibel:** camelCase-Namen (`noFill()`, `strokeWeight()`, `createCanvas(…, WEBGL)`, `frameCount` …), shapely-Geometrie und Schraffur eingebaut
 - **GPU-Shader:** GLSL-Fragment-Shader im Shadertoy-Stil als Bildebene oder Nachbearbeitung (`shader_image()`, `apply_shader()`), am Computer über moderngl, im Browser über WebGL2
@@ -35,7 +36,7 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
   - Funktions-Plotter mit Formeln als Text, numerische Integration als Bild (Riemann, Trapez, Simpson)
   - Differentialgleichungen: RK4, Phasenporträts, seltsame Attraktoren
   - Fraktale: Mandelbrot, Julia, Newton, IFS, Fractal Flames; Domain Coloring komplexer Funktionen
-- **59 Beispiel-Skizzen** zum Lernen und Weiterbauen
+- **61 Beispiel-Skizzen** zum Lernen und Weiterbauen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -319,6 +320,33 @@ python3 -m plotart studio --osc-in 9000 --osc-out 127.0.0.1:9001
 - **Als Textur in TouchDesigner:** `python3 -m plotart touchdesigner` schreibt die Callbacks-Datei für einen Script TOP.
 - Anleitung, Begriffe und Lernpfad: **[docs/touchdesigner.md](docs/touchdesigner.md)**.
 
+## Live & VJ
+
+Für Auftritte und Installationen: Im Studio **🎮 Interaktiv** einschalten (Taste I). Darunter erscheint die Live-Leiste.
+
+- **♻ Live-Code:** Code-Änderungen werden übernommen, während die Skizze läuft.
+  - Funktionen und Klassen werden ausgetauscht; Variablen nur, wenn ihre Zeile geändert wurde oder von einer geänderten Zeile abhängt.
+  - `setup()` läuft nicht erneut, `frame_count` zählt weiter. **↺ Neustart** beginnt von vorn.
+  - Ein Tippfehler hält nichts an: Die Zeile wird markiert, die letzte funktionierende Fassung läuft weiter.
+  - Regler wirken auch auf `param()`-Variablen außerhalb von `draw()`.
+- **Takt:** In der Skizze stehen `bpm`, `beat` (Schläge als Kommazahl), `beat_phase` (0 … 1) und `bar` (Takt) bereit.
+  - `tempo(128)` legt das Tempo fest; im Export und in der Vorschau läuft der Takt danach.
+  - `on_beat(n)` wird bei jedem Schlag aufgerufen, `beat_pulse(5)` blitzt auf dem Schlag auf.
+  - Live kommt der Takt wahlweise aus der Skizze, aus **Tap** (Knopf oder Taste T) oder aus **Ableton Link** (Ableton Live, Bitwig, Traktor, Handy-Apps im selben Netz).
+- **📺 Ausgabe:** öffnet ein eigenes Fenster für Beamer oder zweiten Bildschirm.
+  - Es zeigt die Skizze scharf in voller Auflösung, auch bei normaler Wiedergabe.
+  - **F** oder Doppelklick: Vollbild; **S** in Chrome/Edge: Vollbild auf dem anderen Bildschirm.
+- **Video an andere Programme** (nur am Computer):
+  - **NDI** für OBS, Resolume, TouchDesigner (NDI In TOP), vMix, auch über das Netzwerk.
+  - **Spout** (Windows) für die GPU-Weitergabe an Resolume, TouchDesigner und OBS.
+
+```bash
+pip install -e ".[live]"      # Ableton Link und NDI
+pip install -e ".[spout]"     # Spout – SpoutGL gibt es bisher für Python 3.11 bis 3.13
+```
+
+- **Beispiele:** 60 (Visuals im Takt), 61 (Live-Coding: der Zustand bleibt).
+
 ## Algorithmische Kunst: vom Konzept zum Werk
 
 1. **Konzept:** Der Docstring der Skizze ist ihr Konzept. Die erste Zeile ist der Titel, der Rest die Philosophie. Das Studio zeigt beides im Feld **Konzept**.
@@ -481,6 +509,8 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 57 | Mathe: IFS-Fraktale und Fractal Flames | Barnsley-Farn, Sierpinski, Drache, Flammen |
 | 58 | Mathe: Domain Coloring | komplexe Formel als Regler, drei Stile |
 | 59 | Mathe: Julia-Flug (GPU-Shader) | c wandert auf einem Kreis, nahtloser Loop |
+| 60 | Live: Visuals im Takt | `tempo()`, `beat_pulse()`, `on_beat()`, Länge passend zum Tempo |
+| 61 | Live-Coding: Der Zustand bleibt | Teilchenfeld zum Ändern im laufenden Betrieb |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -601,10 +631,12 @@ plotart/
 │   ├── algorithms/    Baukasten: growth.py, simulation.py, patterns.py, mathart.py (Mathe-Kunst)
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
+├── tempo.py           Ableton Link für den Live-Modus
+├── videoout.py        Video live an andere Programme (NDI, Spout)
 ├── viewer.py          Skizze als eigenständige Web-Seite
 ├── blender/           Blender-Anbindung: Szene, Geometrie, Aufbau (bpy), Add-on, Paket
 ├── generators/        fertige Plotter-Generatoren
-├── static/            Studio, Generator-Seite, Code-Editor (CodeMirror 5, MIT)
+├── static/            Studio, Ausgabefenster, Generator-Seite, Code-Editor (CodeMirror 5, MIT)
 ├── bridge.py          gemeinsame Schnittstelle für Server, Worker-Prozess und Browser
 ├── web.py             lokaler Server (Skizzen in eigenem Prozess mit Zeitlimit, Export-Jobs)
 ├── sketchfiles.py     Skizzen-Ordner (Speichern/Laden)
@@ -619,13 +651,12 @@ docs/                  To-do-Liste (ROADMAP.md), TouchDesigner, Bibliotheken, Al
 - ~~Stufe 3 – Blender~~ ✓
 - ~~Stufe 4 – Bilder & Daten~~ ✓ · ~~Stufe 5 – Pixel & Filter~~ ✓ · ~~Stufe 6 – Kuration & Serien~~ ✓
 - ~~Stufe 7 – Ton & Interaktion~~ ✓ · ~~Stufe 8 – 3D in der Skizze~~ ✓ (dazu OSC/TouchDesigner, Web-Seiten-Export)
-- ~~Stufe 10 – GPU-Shader~~ ✓ · ~~Algorithmen-Baukasten~~ ✓ · ~~Mathe-Kunst~~ ✓
+- ~~Stufe 10 – GPU-Shader~~ ✓ · ~~Algorithmen-Baukasten~~ ✓ · ~~Mathe-Kunst~~ ✓ · ~~Live & VJ~~ ✓
 - Alles Weitere steht in der **[To-do-Liste](docs/ROADMAP.md)**:
   - Website-Anbindung
   - Plotter direkt ansteuern
   - KI-Assistent
   - Editionen
-  - Live/VJ
   - neue Eingaben und Ausgabemaschinen
   - Kurs
   - Desktop-App

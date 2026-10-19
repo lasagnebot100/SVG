@@ -149,43 +149,76 @@ def anim_frames(req: dict) -> dict:
             "sketch_error": err}
 
 
-_LIVE: dict = {"key": None, "anim": None}
+_LIVE: dict = {"seed": None, "anim": None, "params": None, "failed": None, "failed_error": None}
 
 
 def anim_live(req: dict) -> dict:
-    """Live mode: one frame per call with the current mouse/keyboard/MIDI state.
+    """Live mode: one frame per call with the current mouse/keyboard/MIDI/tempo state.
 
-    The animation keeps running (state persists) until the source or seed changes or
-    {"restart": true} is sent. Sliders update without a restart – param() calls inside
-    draw() see the new values immediately.
+    The animation keeps running (state persists) until the seed changes or {"restart": true} is
+    sent. A changed source restarts it – unless {"hot": true}: then the new code is taken over
+    while running (Animation.hot_swap); broken code is reported as "hot_error" and the old code
+    keeps running. Sliders update without a restart – param() calls inside draw() see the new
+    values immediately, with "hot" also top-level param() variables.
     """
     from .sketch.animation import Animation
 
     source, params, seed = req.get("source", ""), dict(req.get("params") or {}), int(req.get("seed") or 1)
     params.pop("__input__", None)                  # live input replaces a recording
     keys = params.pop("__keys__", None)
-    key = (source, seed)
+    hot = bool(req.get("hot"))
     anim = _LIVE["anim"]
-    info = None
-    if anim is None or _LIVE["key"] != key or req.get("restart"):
+    info, extra = None, {}
+    restart = (anim is None or _LIVE["seed"] != seed or bool(req.get("restart"))
+               or (source != anim.source and not hot))
+    if not restart:
+        anim.sk._param_values.update(params)
+        params_changed = hot and params != _LIVE["params"]
+        if source == _LIVE["failed"]:
+            extra["hot_error"] = _LIVE["failed_error"]
+        elif hot and (source != anim.source or params_changed):
+            res = anim.hot_swap(source, refresh_params=params_changed)
+            if res.get("restart"):
+                restart = True
+            elif res.get("error"):
+                _LIVE.update(failed=source, failed_error=res["error"])
+                extra["hot_error"] = res["error"]
+            else:
+                _LIVE.update(failed=None, failed_error=None)
+                extra["swapped"] = True
+                info = anim.info()
+                info["log"] = anim.log
+    if restart:
         anim = Animation(source, params, seed, endless=True)
-        _LIVE.update(key=key, anim=anim)
+        _LIVE.update(seed=seed, anim=anim, failed=None, failed_error=None)
         info = anim.info()
         info["log"] = anim.log
+    _LIVE["params"] = params
     anim.sk._param_values.update(params)
     if keys is not None:
         anim.sk._param_keys = keys
     anim.set_input(req.get("input"), req.get("events"))
-    out = {"info": info, "sketch_error": anim.error}
+    out = {"info": info, "sketch_error": anim.error, **extra}
     if anim.error:
         return out
     fr = anim.next_frame()
     if fr is None:
         return {**out, "sketch_error": anim.error}
     osc_out, anim.sk._osc_out = anim.sk._osc_out, []
+    sk = anim.sk
+    beat_info = {"bpm": anim._tempo["bpm"] if anim._tempo else sk.bpm, "beat": sk.beat,
+                 "bar": int(sk.beat // sk.beats_per_bar), "beats_per_bar": sk.beats_per_bar}
+    if req.get("video") is not None:               # NDI / Spout ({"kind": None} switches it off)
+        from .videoout import VideoOutError, video_for
+        try:
+            vo = video_for(req["video"])
+            if vo is not None and fr.error is None:
+                vo.send(sk, fr, anim.fps)
+        except VideoOutError as exc:
+            out["video_error"] = str(exc)
     return {**out, "frame": {"index": fr.index, "svg": anim.frame_svg(fr), "clears": fr.clears,
                              "ms": round(fr.ms, 1)},
-            "log": fr.log, "sketch_error": fr.error, "osc_out": osc_out}
+            "log": fr.log, "sketch_error": fr.error, "osc_out": osc_out, "tempo": beat_info}
 
 
 def audio_data(req: dict) -> dict:
