@@ -66,6 +66,7 @@ jobs:
     # desktop first: the user works on Windows (cp1252 default encoding, Windows fonts, other GL drivers)
     runs-on: windows-2025
     strategy:
+      fail-fast: false                     # show both Python versions even if one fails
       matrix:
         python: ["3.11", "3.14"]
     steps:

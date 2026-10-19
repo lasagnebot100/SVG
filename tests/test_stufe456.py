@@ -226,6 +226,15 @@ class SketchFolderHistoryTests(unittest.TestCase):
             self.assertEqual(f.meta_load("a.py")["favorites"][0]["seed"], 3)
             self.assertEqual([x["name"] for x in f.list()], ["a.py"])          # hidden folder not listed
 
+    def test_quick_saves_keep_every_version_in_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = SketchFolder(tmp)
+            for i in range(11):                           # well within one second
+                f.save("b.py", f"v{i}")
+            versions = f.history("b.py")
+            self.assertEqual([f.history_load("b.py", v["version"])["source"] for v in versions],
+                             [f"v{i}" for i in range(9, -1, -1)])          # all 10 kept, newest first
+
 
 if __name__ == "__main__":
     unittest.main()

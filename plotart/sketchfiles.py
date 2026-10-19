@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import re
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -66,7 +65,11 @@ class SketchFolder:
         hdir = self._history_dir(path)
         hdir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y%m%d-%H%M%S")
-        (hdir / f"{stamp}-{int(time.time() * 1e6) % 1_000_000:06d}.py").write_text(source, encoding="utf-8")
+        # running number per second instead of microseconds: time.time() on Windows/Python 3.11 only
+        # ticks every ~15.6 ms, so quick saves got the same name and overwrote each other
+        taken = [int(p.name[16:22]) for p in hdir.glob(f"{stamp}-*.py") if _VERSION.match(p.name)]
+        seq = max(taken) + 1 if taken else 0
+        (hdir / f"{stamp}-{seq:06d}.py").write_text(source, encoding="utf-8")
         versions = sorted(hdir.glob("*.py"))
         for old in versions[:-MAX_VERSIONS]:
             old.unlink()
