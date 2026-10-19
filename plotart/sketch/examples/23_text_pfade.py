@@ -5,7 +5,7 @@ size("A4", landscape=True)
 
 wort = param("Text", "plotart")
 groesse = param("Schriftgröße (mm)", 70, 10, 140)
-schrift = param("Schrift", "DejaVuSans-Bold")
+schrift = param("Schrift", "sans-bold")     # „sans-bold“ = eine fette Schrift, die dieser Rechner hat
 abstand = param("Schraffur-Abstand (mm)", 1.2, 0.4, 5.0)
 winkel = param("Winkel", 35, 0, 180)
 wackeln = param("Wackeln", 0.6, 0.0, 4.0)

@@ -4,6 +4,20 @@ Leitlinie: plotart ist in erster Linie ein Werkzeug für **generative und algori
 
 Legende: ✅ erledigt · 🔨 in Arbeit · ⬜ geplant
 
+## ✅ Technische Baustellen (Windows-Prüfung, 19. Oktober 2026)
+
+Vorher: 118 Tests unter Windows 11 und Python 3.14, davon 3 Fehlschläge und 1 Fehler. Nachher: 120 Tests, alle grün, mit und ohne Pillow/numpy/shapely.
+
+- ✅ **Kodierung:** Die Tests lesen und schreiben Dateien jetzt mit `encoding="utf-8"` (vorher `UnicodeDecodeError` unter cp1252).
+- ✅ **Shader-Fehlermeldungen:** `_shader_error()` erkennt auch das NVIDIA-Format `0(12) : error C…`; neuer Test ohne GPU.
+- ✅ **Portable Schriftnamen:** `"sans"` und `"sans-bold"` in `find_font()` wählen eine Schrift des jeweiligen Systems; Windows-Nutzerschriften werden gefunden. Beispiel 23 und das README nutzen `"sans-bold"`.
+- ✅ **Schriften in `series.py` und `raster.py`:** über `find_font()` statt fester DejaVu-Dateien.
+- ✅ **Test für Beispiel 35:** wird ohne Pillow übersprungen.
+- ✅ **CI:** neuer Job `windows` (Python 3.11 und 3.14).
+- ✅ **README:** Abschnitt „Unter Windows (PowerShell)“.
+- ✅ **`pyproject.toml`:** `requires-python = ">=3.11"`.
+- ⬜ **Offen:** `text_paths()` in der Browser-Version (Pyodide) hat keine Systemschriften. Eine freie Schrift (z. B. DejaVu Sans) mitliefern.
+
 ## ⬜ Neue Wünsche (Oktober 2026) – noch nicht begonnen, Reihenfolge wird abgestimmt
 
 ### I – Mehrere Sprachen im Studio („Mehrsprachen-Studio“)

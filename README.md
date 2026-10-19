@@ -49,6 +49,21 @@ Das **Studio** öffnet sich unter `http://localhost:8765`.
 
 Optional: `pip install -e ".[full]"` installiert Pillow, numpy, imageio-ffmpeg (für Videos), shapely und moderngl (für Shader) sowie den Befehl `plotart`.
 
+### Unter Windows (PowerShell)
+
+Python 3.11 bis 3.14 von [python.org](https://www.python.org/downloads/windows/) installieren. Danach jeden Befehl einzeln ausführen:
+
+```powershell
+git clone https://github.com/lasagnebot100/SVG.git
+cd SVG
+py -m pip install -e ".[full]"
+plotart
+```
+
+- **`plotart` wird nicht gefunden?** Dann liegt der Scripts-Ordner von Python nicht im `PATH`. `py -m plotart` funktioniert immer.
+- **`python3` öffnet den Microsoft Store?** Unter Windows heißt der Befehl `py` oder `python`.
+- **Schriften:** `text_paths()` findet die Schriften aus `C:\Windows\Fonts` und die nur für den eigenen Benutzer installierten. `font="sans-bold"` wählt automatisch eine fette Schrift (unter Windows Arial Bold).
+
 ![Studio](examples/studio.jpg)
 
 ## Deine erste Skizze
@@ -122,7 +137,7 @@ image(img.filter(BLUR, 3), 0, 0, width, height)
 
 rows = load_csv("messwerte.csv")              # Liste von Dicts, 12,5 → 12.5
 svg = load_svg("logo.svg"); draw_svg(svg, 100, 100, w=300)
-umrisse = text_paths("Hallo", 50, 200, 120, font="DejaVuSans-Bold")   # Buchstaben als Punktlisten
+umrisse = text_paths("Hallo", 50, 200, 120, font="sans-bold")   # Buchstaben als Punktlisten
 text_shape("Hallo", 50, 200, 120)             # Text als echte Form (Plotter, Blender)
 ```
 
@@ -131,7 +146,7 @@ text_shape("Hallo", 50, 200, 120)             # Text als echte Form (Plotter, Bl
 | `load_image(pfad)` | Bild laden → `.width`, `.height`, `.get()`, `.brightness()`, `.sample(u, v)`, `.grid()`, `.pixels`, `.resize()`, `.crop()`, `.rotate()`, `.filter()`, `.dither()` |
 | `load_csv` · `load_json` · `load_text` · `load_lines` | Daten laden (CSV erkennt `;`, `,`, Tab und Dezimalkomma) |
 | `load_svg` · `draw_svg` | SVG-Grafiken als Punktlisten importieren und zeichnen |
-| `text_paths` · `text_shape` | Text als Umrisse (TrueType-Schriften des Systems oder eigene `.ttf` aus `daten/`) |
+| `text_paths` · `text_shape` | Text als Umrisse (TrueType-Schriften des Systems oder eigene `.ttf` aus `daten/`; `"sans"` bzw. `"sans-bold"` wählt eine passende Schrift des jeweiligen Systems) |
 
 ## Pixel & Filter
 

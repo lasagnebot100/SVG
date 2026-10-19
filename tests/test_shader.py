@@ -43,6 +43,12 @@ class WrapTests(unittest.TestCase):
             wrap_fragment("float x;", es=True)
         e = _shader_error("Shader-Fehler", "GLSL Compiler failed\n\nfragment_shader\n=====\n0:3(5): error: `x' undeclared\n")
         self.assertEqual(str(e), "Shader-Fehler: Zeile 3: `x' undeclared")
+
+    def test_error_formats_of_other_drivers(self):
+        nvidia = _shader_error("Shader-Fehler", '0(12) : error C1503: undefined variable "nope"')
+        self.assertEqual(str(nvidia), 'Shader-Fehler: Zeile 12: undefined variable "nope"')
+        angle = _shader_error("Shader-Fehler", "ERROR: 0:7: 'x' : undeclared identifier")
+        self.assertEqual(str(angle), "Shader-Fehler: Zeile 7: 'x' : undeclared identifier")
         e = _shader_error("Shader-Fehler", "ERROR: 0:7: 'nope' : undeclared identifier\n\0")
         self.assertEqual(str(e), "Shader-Fehler: Zeile 7: 'nope' : undeclared identifier")
 
@@ -102,8 +108,8 @@ class GPUTests(unittest.TestCase):
     def test_examples(self):
         for path in sorted(EXAMPLES.glob("3[3-9]_shader*.py")):
             with self.subTest(path.name):
-                if "nachbearbeitung" in path.name and not HAS_PIL:
-                    continue
+                if any(k in path.name for k in ("nachbearbeitung", "rueckkopplung")) and not HAS_PIL:
+                    self.skipTest("Pillow fehlt (snapshot / apply_shader)")
                 r = run_sketch(path.read_text(encoding="utf-8"))
                 self.assertIsNone(r["error"], r["error"])
 

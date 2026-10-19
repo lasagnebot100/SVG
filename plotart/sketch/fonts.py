@@ -19,9 +19,15 @@ FONT_DIRS = [
     "/System/Library/Fonts", "/System/Library/Fonts/Supplemental", "/Library/Fonts",
     os.path.expanduser("~/Library/Fonts"),
     os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"),
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Windows", "Fonts"),  # per-user fonts (Windows)
 ]
 DEFAULT_FONTS = ["DejaVuSans", "Arial", "Helvetica", "LiberationSans-Regular", "NotoSans-Regular",
                  "Roboto-Regular", "Verdana", "SegoeUI", "FreeSans"]
+# Windows file names in brackets: arialbd = Arial Bold, verdanab = Verdana Bold, segoeuib = Segoe UI Bold
+DEFAULT_BOLD_FONTS = ["DejaVuSans-Bold", "arialbd", "Arial Bold", "LiberationSans-Bold", "NotoSans-Bold",
+                      "Roboto-Bold", "verdanab", "segoeuib", "FreeSansBold"]
+# Portable names that pick a font available on this system
+FONT_ALIASES = {"sans": DEFAULT_FONTS, "sans-bold": DEFAULT_BOLD_FONTS}
 
 
 @lru_cache(maxsize=1)
@@ -39,7 +45,14 @@ def _font_index() -> dict[str, str]:
 
 
 def find_font(name: str | None = None) -> str:
-    """Path of a font: a file path, a font name such as "DejaVuSans-Bold"/"Arial", or None (default)."""
+    """Path of a font: a file path, a font name such as "DejaVuSans-Bold"/"Arial", "sans"/"sans-bold"
+    (whatever this system has) or None (default)."""
+    if name and name.strip().lower() in FONT_ALIASES:
+        idx = _font_index()
+        for cand in FONT_ALIASES[name.strip().lower()]:
+            if cand.lower() in idx:
+                return idx[cand.lower()]
+        name = None                                  # nothing suitable installed → default font
     if name:
         p = Path(os.path.expanduser(name))
         if p.suffix.lower() in (".ttf", ".ttc", ".otf"):

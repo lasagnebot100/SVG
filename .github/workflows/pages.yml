@@ -62,6 +62,20 @@ jobs:
         run: python -c "from plotart.sketch.shader import backend; print(backend().renderer())"
       - run: python -m unittest discover -s tests -v
 
+  windows:
+    # desktop first: the user works on Windows (cp1252 default encoding, Windows fonts, other GL drivers)
+    runs-on: windows-2025
+    strategy:
+      matrix:
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install Pillow numpy shapely
+      - run: python -m unittest discover -s tests -v
+
   blender:
     # the Blender add-on against real Blender (bpy module)
     runs-on: ubuntu-24.04

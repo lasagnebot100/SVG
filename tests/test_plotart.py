@@ -71,16 +71,16 @@ class WebBuildTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             index = build_web.build(Path(tmp), "https://example.org/pyodide/")
-            backend = (Path(tmp) / "backend.js").read_text()
+            backend = (Path(tmp) / "backend.js").read_text(encoding="utf-8")
             self.assertIn("window.PLOTART_BACKEND", backend)
             self.assertIn('"plotart/generators/blocks.py"', backend)
             self.assertIn('"plotart/sketch/examples/01_erste_schritte.py"', backend)
             self.assertNotIn("</script", backend)
             for page in ("index.html", "generatoren.html"):
-                html = (Path(tmp) / page).read_text()
+                html = (Path(tmp) / page).read_text(encoding="utf-8")
                 self.assertIn('<script src="backend.js"></script>', html)
                 self.assertIn('rel="manifest"', html)
-            self.assertIn("plotart Studio", index.read_text())
+            self.assertIn("plotart Studio", index.read_text(encoding="utf-8"))
             self.assertTrue((Path(tmp) / "vendor" / "codemirror.js").exists())
 
     def test_bridge_roundtrip(self):

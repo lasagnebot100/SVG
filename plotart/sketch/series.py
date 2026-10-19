@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Callable
 
 from ..svg import to_svg
+from .data import DataError
 from .export import render_png, to_plotter
+from .fonts import find_font
 from .render_svg import render_svg
 from .runner import execute
 
@@ -28,9 +30,9 @@ def contact_sheet(thumbs: list[tuple[str, object]], cols: int | None = None, cel
     sheet = Image.new("RGB", (W, H), (236, 235, 231))
     d = ImageDraw.Draw(sheet)
     try:
-        font = ImageFont.truetype("DejaVuSans.ttf", 14)
-        tfont = ImageFont.truetype("DejaVuSans-Bold.ttf", 18)
-    except OSError:
+        font =ImageFont.truetype(find_font("sans"), 14)
+        tfont = ImageFont.truetype(find_font("sans-bold"), 18)
+    except (OSError, DataError):
         font = tfont = ImageFont.load_default()
     if title:
         d.text((pad, 12), title, fill=(29, 29, 31), font=tfont)

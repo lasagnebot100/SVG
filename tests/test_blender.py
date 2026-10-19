@@ -150,7 +150,7 @@ class BlenderTests(unittest.TestCase):
         from plotart.blender.package import build_addon
         with tempfile.TemporaryDirectory() as tmp:
             sketch = os.path.join(tmp, "s.py")
-            with open(sketch, "w") as f:
+            with open(sketch, "w", encoding="utf-8") as f:
                 f.write('n = param("Anzahl", 5, 1, 20)\nno_stroke()\nfor i in range(n):\n    circle(i * 30, 50, 20)\n')
             zp = build_addon(os.path.join(tmp, "a.zip"))
             bpy.ops.extensions.package_install_files(filepath=str(zp), repo="user_default", enable_on_install=True)

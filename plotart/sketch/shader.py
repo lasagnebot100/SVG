@@ -69,14 +69,15 @@ def wrap_fragment(source: str, es: bool) -> str:
 
 
 def _shader_error(kind: str, log: str) -> ShaderError:
-    """Readable compiler message; '0:12(5): error …' / 'ERROR: 0:12: …' → 'Zeile 12: …'."""
+    """Readable compiler message; '0:12(5): error …' (Mesa) / 'ERROR: 0:12: …' / '0(12) : error C…: …' (NVIDIA)
+    → 'Zeile 12: …'."""
     lines = []
     for ln in str(log).replace("\0", "").strip().splitlines():
         if not ln.strip() or set(ln.strip()) <= {"="} or ln.strip() in ("GLSL Compiler failed", "fragment_shader",
                                                                           "vertex_shader"):
             continue
-        m = re.search(r"(?:ERROR:\s*)?\d+:(\d+)(?:\(\d+\))?:\s*(?:error[^:]*:\s*)?(.*)", ln)
-        lines.append(f"Zeile {m.group(1)}: {m.group(2).strip()}" if m else ln.strip())
+        m = re.search(r"(?:ERROR:\s*)?\d+(?::(\d+)(?:\(\d+\))?|\((\d+)\))\s*:\s*(?:error[^:]*:\s*)?(.*)", ln)
+        lines.append(f"Zeile {m.group(1) or m.group(2)}: {m.group(3).strip()}" if m else ln.strip())
     msg = "; ".join(x for x in lines if x)[:600] or "unbekannter Fehler"
     return ShaderError(f"{kind}: {msg}")
 

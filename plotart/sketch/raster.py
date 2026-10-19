@@ -9,6 +9,7 @@ import random
 
 from .color import Color, to_color
 from .data import SAMPLE_PREFIX, DataError, resolve
+from .fonts import find_font
 
 FILTERS = ["blur", "sharpen", "edges", "emboss", "gray", "invert", "posterize", "threshold", "contrast",
            "brightness", "saturation", "pixelate", "grain", "dither", "sepia", "levels"]
@@ -313,8 +314,8 @@ def sample_image(name: str, size: int = 512):
         im = Image.new("L", (s * 2, s), 245)
         d = ImageDraw.Draw(im)
         try:
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(s * 0.42))
-        except OSError:
+            font = ImageFont.truetype(find_font("sans-bold"), int(s * 0.42))
+        except (OSError, DataError):
             font = ImageFont.load_default(size=int(s * 0.42))
         d.text((s, s / 2), "plotart", fill=20, font=font, anchor="mm")
         return im.convert("RGBA")

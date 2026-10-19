@@ -45,7 +45,7 @@ class DataTests(unittest.TestCase):
         self.assertIn("punkte", data.load_json("beispiel:zufall.json"))
 
     def test_from_sketch(self):
-        (self.tmp / "t.json").write_text('{"a": [1, 2, 3]}')
+        (self.tmp / "t.json").write_text('{"a": [1, 2, 3]}', encoding="utf-8")
         sk, log, err, _ = execute('print(sum(load_json("t.json")["a"]), len(load_lines("beispiel:gedicht.txt")))')
         self.assertIsNone(err, err)
         self.assertEqual(log.strip(), "6 3")
@@ -107,6 +107,11 @@ class FontTests(unittest.TestCase):
         sk, _, err, _ = execute('size(300, 100)\nno_fill()\nstroke(0)\ntext_shape("Hi", 10, 80, 60)')
         self.assertIsNone(err, err)
         self.assertGreaterEqual(to_plotter(sk, optimize=False).stats()["paths"], 3)
+
+    def test_portable_font_names(self):
+        from plotart.sketch.fonts import find_font
+        self.assertEqual(find_font("sans"), find_font(None))
+        self.assertTrue(find_font("Sans-Bold").lower().endswith((".ttf", ".ttc")))  # falls back if no bold font
 
 
 @unittest.skipUnless(HAS_PIL, "Pillow fehlt")
@@ -191,7 +196,7 @@ class SeriesTests(unittest.TestCase):
             names = sorted(p.name for p in (tmp / "s").iterdir())
             self.assertIn("kontaktbogen.png", names)
             self.assertIn("t_2_plotter.svg", names)
-            meta = json.loads((tmp / "s" / "serie.json").read_text())
+            meta = json.loads((tmp / "s" / "serie.json").read_text(encoding="utf-8"))
             self.assertIn("error", meta["varianten"][2])
             self.assertTrue((tmp / "s.zip").exists())
         finally:
