@@ -95,5 +95,26 @@ class WebBuildTests(unittest.TestCase):
         self.assertIn("error", err)
 
 
+class CliTests(unittest.TestCase):
+    def test_redirected_output_with_cp1252_does_not_crash(self):
+        # Windows writes redirected output (files, pipes, CI logs) as cp1252, which has no ✓ or →
+        import os
+        import subprocess
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as tmp:
+            sketch = Path(tmp, "s.py")
+            sketch.write_text("size(50, 50)\ncircle(25, 25, 20)\n", encoding="utf-8")
+            env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONPATH": str(root)}
+            r = subprocess.run([sys.executable, "-m", "plotart", "sketch", str(sketch), "--out", tmp],
+                               capture_output=True, env=env, cwd=tmp, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr.decode("cp1252", "replace"))
+            self.assertIn(b"Seed 1", r.stdout)
+            self.assertTrue(Path(tmp, "s_1.svg").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

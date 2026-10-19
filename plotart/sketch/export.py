@@ -73,7 +73,10 @@ class PillowCanvas:
     what is already there – so animation frames can accumulate like in p5."""
 
     def __init__(self, width: float, height: float, scale: float, ss: int = 2):
-        from PIL import Image, ImageChops
+        try:
+            from PIL import Image, ImageChops
+        except ImportError:
+            raise ImportError("PNG-Export braucht Pillow: pip install Pillow") from None
         self.width, self.height = width, height
         self.W, self.H = max(1, round(width * scale)), max(1, round(height * scale))
         self.ss = ss

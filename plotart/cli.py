@@ -18,6 +18,16 @@ from .generators import REGISTRY
 from .svg import to_png, to_svg
 
 
+def safe_console():
+    """Replace characters the console cannot show (✓, →) instead of crashing.
+
+    Windows uses cp1252 when output is redirected to a file, a pipe or a CI log.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
+
+
 def _settings(args) -> dict:
     return {
         "paper": args.paper,
@@ -194,9 +204,15 @@ def _run_sketch_cmd(args) -> int:
                 f.write(render_svg(sk, meta))
             written.append(base + ".svg")
         if want_png:
-            with open(base + ".png", "wb") as f:
-                f.write(render_png(sk, scale=args.scale))
-            written.append(base + ".png")
+            try:
+                png = render_png(sk, scale=args.scale)
+            except ImportError as exc:
+                print(f"✗ {exc}", file=sys.stderr)
+                status = 1
+            else:
+                with open(base + ".png", "wb") as f:
+                    f.write(png)
+                written.append(base + ".png")
         if args.plotter:
             d = to_plotter(sk, pen_width=args.pen, hidden_lines=args.hidden_lines)
             with open(base + "_plotter.svg", "w", encoding="utf-8") as f:
@@ -228,6 +244,7 @@ def _run_sketch_cmd(args) -> int:
 
 
 def main(argv=None):
+    safe_console()
     ap = argparse.ArgumentParser(prog="plotart", description="Generative SVG-Kunst für Stiftplotter")
     sub = ap.add_subparsers(dest="cmd")
 

@@ -328,6 +328,14 @@ class SkillAndLibraryTests(unittest.TestCase):
         out = bridge.dispatch("viewer_html", {"source": "circle(1, 1, 1)", "seed": 3})
         self.assertIn("pyodide", out["html"])
 
+    def test_viewer_worker_regexes_survive_template_literal(self):
+        # the worker code sits in a JS template literal, where "\(" turns into "(" and breaks the regex
+        import re
+        from plotart.viewer import build_viewer
+        worker = re.search(r"const WORKER = `(.*?)`;", build_viewer("circle(1, 1, 1)"), re.S).group(1)
+        self.assertIsNone(re.search(r"(?<!\\)\\\(", worker))
+        self.assertIn(r"mandelbrot\\(", worker)
+
     def test_p5_aliases(self):
         r = run_sketch('createCanvas(300, 200, WEBGL)\nnoFill()\nstrokeWeight(2)\nv = createVector(3, 4)\n'
                        'print(width, height, v.mag(), frameCount)\npush()\ntranslate(150, 100)\nrotateY(0.4)\nbox(50)\npop()')

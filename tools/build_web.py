@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,7 +49,7 @@ self.onmessage = async (e) => {
         if (/load_image|create_image|snapshot\(|apply_shader|filter\(|load_svg|draw_svg|text_paths|text_shape/.test(source)) {
           await py.loadPackage("pillow", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
         }
-        if (/reaction_diffusion\(/.test(source)) {
+        if (/reaction_diffusion\(|mandelbrot\(|julia\(|newton_fractal\(|domain_coloring\(|density\(|colorize\(/.test(source)) {
           await py.loadPackage("numpy", { messageCallback: (msg) => self.postMessage({ progress: msg }) });
         }
         if (/shape_union|shape_difference|shape_intersection|offset_shape|draw_geometry/.test(source)) {
@@ -217,6 +218,9 @@ def build(out: Path, pyodide_url: str) -> Path:
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):        # Windows: cp1252 when redirected – replace ✓ instead of crashing
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(ROOT / "site"), help="Ausgabeordner (Standard: site/)")
     ap.add_argument("--pyodide-url", default=DEFAULT_PYODIDE, help="Basis-URL der Pyodide-Dateien")

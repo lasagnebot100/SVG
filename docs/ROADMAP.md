@@ -16,6 +16,9 @@ Vorher: 118 Tests unter Windows 11 und Python 3.14, davon 3 Fehlschläge und 1 F
 - ✅ **CI:** neuer Job `windows` (Python 3.11 und 3.14).
 - ✅ **README:** Abschnitt „Unter Windows (PowerShell)“.
 - ✅ **`pyproject.toml`:** `requires-python = ">=3.11"`.
+- ✅ **Web-Seiten-Export (gefunden bei Block II):** Der Worker-Code in `viewer.py` war seit 1.10.0 ungültig (`\(` im JS-Template-Literal), exportierte Seiten starteten nicht. Behoben in 1.11.0, mit Regressionstest.
+- ✅ **Umgeleitete Ausgabe unter Windows:** `plotart` und `tools/build_web.py` stürzten bei Ausgabe in Datei, Pipe oder CI-Log an „✓“ und „→“ ab (cp1252). Behoben in 1.11.0, mit Test.
+- ✅ **PNG-Export ohne Pillow:** freundliche Meldung „PNG-Export braucht Pillow: pip install Pillow“ statt Traceback; das SVG wird trotzdem geschrieben.
 - ⬜ **Offen:** `text_paths()` in der Browser-Version (Pyodide) hat keine Systemschriften. Eine freie Schrift (z. B. DejaVu Sans) mitliefern.
 
 ## ⬜ Neue Wünsche (Oktober 2026) – noch nicht begonnen, Reihenfolge wird abgestimmt
@@ -41,19 +44,13 @@ Gemeinsam für alle Sprachen: Seed, Regler (`param`), Varianten, Favoriten, Expo
   - React-Komponente `<PlotartWerk>`, um interaktive Werke in Websites und React-Apps einzubetten (passt zur Website-Anbindung)
   - Vorlage für React Three Fiber (3D-Generativkunst)
 
-### II – Mathe-Kunst
+### ✅ II – Mathe-Kunst (Version 1.11.0, Modul `algorithms/mathart.py`, Beispiele 51–59)
 
-- ⬜ **Numerische Integration als Bild und Animation:**
-  - Riemann-Summen, Mittelpunkt-, Trapez- und Simpson-Regel
-  - Fehlerflächen und Konvergenz
-  - dazu ein Funktions-Plotter für beliebige Formeln
-- ⬜ **Kurven-Baukasten:** Lissajous, Rosen, Harmonograph, Spirograph, Superformel, Fourier-Epizykel (Zeichnung → Kreise)
-- ⬜ **Differentialgleichungen:** RK4-Löser, Phasenporträts, seltsame Attraktoren als Funktionen
-- ⬜ **Fraktale:**
-  - Mandelbrot- und Julia-Mengen (auch als Shader)
-  - IFS und Fractal Flames
-  - Newton-Fraktale
-- ⬜ **Komplexe Funktionen:** Domain Coloring
+- ✅ **Numerische Integration als Bild und Animation:** `riemann()` mit links/Mitte/rechts, Trapez und Simpson, Fehlerflächen; `integrate()`; Funktions-Plotter `Graph` und `formula()` für Formeln als Text
+- ✅ **Kurven-Baukasten:** `lissajous()`, `rose()`, `harmonograph()`, `spirograph()`, `superformula()`, `Epicycles` (Zeichnung → Kreise), `fourier_approx()`
+- ✅ **Differentialgleichungen:** `rk4()`, `phase_portrait()`, `attractor()` (Lorenz, Rössler, Aizawa, Thomas, Halvorsen, Clifford, De Jong, Svensson, Hénon, Ikeda, Tinkerbell)
+- ✅ **Fraktale:** `mandelbrot()`, `julia()` (auch als Shader, Beispiel 59), `newton_fractal()`, `ifs()`, `fractal_flame()`, `colorize()`
+- ✅ **Komplexe Funktionen:** `domain_coloring()` in drei Stilen
 
 ### III – Weitere Algorithmen (Ergänzung zu B)
 
@@ -224,6 +221,7 @@ Ziel: Was diese Bibliotheken in Processing können, soll es in plotart auch gebe
   - Simulation: Verlet-Physik, Boids, Zellautomaten, Game of Life, Reaktion-Diffusion
   - Muster: Wave Function Collapse, Truchet, Delaunay, TSP, Höhenlinien, Stromlinien, L-Systeme, Kreispackung
   - 15 Beispiele (36–50)
+- **II – Mathe-Kunst** (siehe oben), 9 Beispiele (51–59)
 - Weitere Bausteine:
   - OSC/TouchDesigner
   - Algorithmic-Art-Workflow

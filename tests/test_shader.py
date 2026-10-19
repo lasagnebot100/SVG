@@ -106,7 +106,9 @@ class GPUTests(unittest.TestCase):
         self.assertEqual(im.getpixel((35, 10)), (0, 0, 255))
 
     def test_examples(self):
-        for path in sorted(EXAMPLES.glob("3[3-9]_shader*.py")):
+        paths = [p for p in sorted(EXAMPLES.glob("*.py")) if "create_shader" in p.read_text(encoding="utf-8")]
+        self.assertGreaterEqual(len(paths), 4)                        # 33–35 and 59
+        for path in paths:
             with self.subTest(path.name):
                 if any(k in path.name for k in ("nachbearbeitung", "rueckkopplung")) and not HAS_PIL:
                     self.skipTest("Pillow fehlt (snapshot / apply_shader)")

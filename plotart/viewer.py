@@ -209,7 +209,7 @@ self.onmessage = async (e) => {
       await py.loadPackagesFromImports(arg.source);
       if (/load_image|create_image|snapshot\\(|apply_shader|filter\\(|load_svg|draw_svg|text_shape/.test(arg.source)) await py.loadPackage("pillow");
       if (/shape_union|shape_difference|shape_intersection|offset_shape|draw_geometry/.test(arg.source)) await py.loadPackage("shapely");
-      if (/reaction_diffusion\(/.test(arg.source)) await py.loadPackage("numpy");
+      if (/reaction_diffusion\\(|mandelbrot\\(|julia\\(|newton_fractal\\(|domain_coloring\\(|density\\(|colorize\\(/.test(arg.source)) await py.loadPackage("numpy");
       py.runPython("import sys; sys.path.insert(0, '/home/pyodide'); from plotart import bridge");
       self.postMessage({ id, result: true });
     } else {

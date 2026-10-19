@@ -30,7 +30,12 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
   - Wachstum: Differential Growth, DLA, Space Colonization
   - Simulation: Verlet-Physik, Schwärme, zelluläre Automaten, Reaktion-Diffusion
   - Muster: Wave Function Collapse, Truchet, Delaunay, TSP-Kunst, Höhenlinien, Stromlinien, L-Systeme, Kreispackung
-- **50 Beispiel-Skizzen** zum Lernen und Weiterbauen
+- **Mathe-Kunst:**
+  - Kurven: Lissajous, Rosen, Harmonograph, Spirograph, Superformel, Fourier-Epizykel
+  - Funktions-Plotter mit Formeln als Text, numerische Integration als Bild (Riemann, Trapez, Simpson)
+  - Differentialgleichungen: RK4, Phasenporträts, seltsame Attraktoren
+  - Fraktale: Mandelbrot, Julia, Newton, IFS, Fractal Flames; Domain Coloring komplexer Funktionen
+- **59 Beispiel-Skizzen** zum Lernen und Weiterbauen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -247,6 +252,29 @@ Bewährte Verfahren der generativen Kunst als fertige Bausteine. Sie geben Punkt
 - **Schnell:** numpy beschleunigt einige Verfahren, wenn es installiert ist. Ohne numpy laufen sie in reinem Python.
 - **Beispiele:** Skizzen 36–50.
 
+## Mathe-Kunst
+
+Mathematik als Bild: Kurven, Flächen, Bahnen und Fraktale. Kurven und Bahnen sind Punktlisten (gut für den Plotter), Fraktale und Domain Coloring sind Pixelfelder für `image()`.
+
+| Bereich | Funktion | Was entsteht |
+|---|---|---|
+| **Kurven** | `lissajous(a, b)` · `rose(n, d)` · `spirograph(R, r, d)` · `superformula(m, n1, n2, n3)` | klassische Kurven als Punktliste |
+| | `harmonograph()` | gedämpfte Pendel, verschlungene Spiralen (Seed-abhängig) |
+| | `Epicycles(punkte, terms)` · `.circles(t)` · `.path(t)` · `fourier_approx()` | eine Zeichnung aus rotierenden Kreisen (Fourier) |
+| **Funktionen** | `Graph(x0, x1, y0, y1, links, oben, w, h)` · `.curve(f)` · `.axes()` · `.labels()` · `.area()` | Koordinatensystem, Funktionsgraphen mit Polstellen |
+| | `formula("sin(x)^2")` · `formula("z^3 - 1", "z")` | Formel als Text, z. B. aus einem Regler |
+| | `riemann(f, a, b, n, "simpson")` · `integrate(f, a, b)` | Streifen, Trapeze, Parabeln und Fehlerflächen |
+| **Dynamik** | `rk4(f, y0, t0, t1, dt)` · `phase_portrait(f, …)` | Lösungen und Bahnen von Differentialgleichungen |
+| | `attractor("lorenz")` · `fit_points()` · `density()` | Lorenz, Rössler, Aizawa, Clifford, De Jong … |
+| **Fraktale** | `mandelbrot()` · `julia()` · `colorize(feld, farben, cycles)` | Fluchtzeit-Fraktale mit Farbbändern |
+| | `newton_fractal(w, h, roots)` | Einzugsgebiete der Nullstellen |
+| | `ifs("farn")` · `fractal_flame()` | Chaos-Spiel und Fractal Flames |
+| **Komplex** | `domain_coloring(f, w, h, …, style)` | Farbton = Winkel, Helligkeit = Betrag |
+
+- **Mit und ohne numpy:** Die Pixel-Funktionen nutzen numpy, wenn es installiert ist; sonst rechnen sie in reinem Python.
+- **Auch auf der GPU:** Beispiel 59 rechnet die Julia-Menge als Shader in Echtzeit.
+- **Beispiele:** Skizzen 51–59.
+
 ## Shader (GPU)
 
 Ein Fragment-Shader rechnet **jedes Pixel gleichzeitig auf der Grafikkarte**. Damit sind Effekte in Echtzeit möglich, die Form für Form zu langsam wären: fließende Farbfelder, Fraktale, Verzerrungen, Rückkopplung.
@@ -444,6 +472,15 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 48 | Muster: Stromlinien | gleichmäßige Linien durch ein Richtungsfeld |
 | 49 | Muster: L-System-Wiese | zufällige Ersetzungsregeln, Turtle-Grafik |
 | 50 | Muster: Kreispackung | Kreise in einer Noise-Form, mit Ringen |
+| 51 | Mathe: Kurven-Baukasten | Lissajous, Rosen, Spirograph, Superformel, Harmonograph als Raster |
+| 52 | Mathe: Fourier-Epizykel | eine Form aus rotierenden Kreisen (Animation) |
+| 53 | Mathe: Numerische Integration | Formel als Regler, Riemann/Trapez/Simpson, Fehler schrumpft (Animation) |
+| 54 | Mathe: Phasenporträt | Pendel, Van der Pol, Räuber und Beute mit RK4 |
+| 55 | Mathe: Seltsamer Attraktor in 3D | Lorenz & Co., gedreht (Animation) |
+| 56 | Mathe: Mandelbrot, Julia und Newton | `colorize()` mit Farbbändern, Zoom und Ausschnitt |
+| 57 | Mathe: IFS-Fraktale und Fractal Flames | Barnsley-Farn, Sierpinski, Drache, Flammen |
+| 58 | Mathe: Domain Coloring | komplexe Formel als Regler, drei Stile |
+| 59 | Mathe: Julia-Flug (GPU-Shader) | c wandert auf einem Kreis, nahtloser Loop |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -561,7 +598,7 @@ plotart/
 │   ├── three.py       3D: Geometrie, Projektion, Licht · export3d.py: glTF/OBJ
 │   ├── audio.py       Ton-Analyse · occlusion.py: verdeckte Linien · geometry2d.py: Schraffur, shapely
 │   ├── shader.py      GPU-Shader: GLSL-Vorbau, moderngl (Desktop), WebGL2 (Browser)
-│   ├── algorithms/    Baukasten: growth.py, simulation.py, patterns.py
+│   ├── algorithms/    Baukasten: growth.py, simulation.py, patterns.py, mathart.py (Mathe-Kunst)
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
 ├── viewer.py          Skizze als eigenständige Web-Seite
@@ -582,7 +619,7 @@ docs/                  To-do-Liste (ROADMAP.md), TouchDesigner, Bibliotheken, Al
 - ~~Stufe 3 – Blender~~ ✓
 - ~~Stufe 4 – Bilder & Daten~~ ✓ · ~~Stufe 5 – Pixel & Filter~~ ✓ · ~~Stufe 6 – Kuration & Serien~~ ✓
 - ~~Stufe 7 – Ton & Interaktion~~ ✓ · ~~Stufe 8 – 3D in der Skizze~~ ✓ (dazu OSC/TouchDesigner, Web-Seiten-Export)
-- ~~Stufe 10 – GPU-Shader~~ ✓ · ~~Algorithmen-Baukasten~~ ✓
+- ~~Stufe 10 – GPU-Shader~~ ✓ · ~~Algorithmen-Baukasten~~ ✓ · ~~Mathe-Kunst~~ ✓
 - Alles Weitere steht in der **[To-do-Liste](docs/ROADMAP.md)**:
   - Website-Anbindung
   - Plotter direkt ansteuern
