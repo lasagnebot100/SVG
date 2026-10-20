@@ -143,10 +143,10 @@ Ziel: Was diese Bibliotheken in Processing können, soll es in plotart auch gebe
 
 ## ⬜ Website-Anbindung (eigene Website des Künstlers)
 
-- ⬜ Serien und Favoriten als **Galerie-Paket** exportieren:
-  - Bilder in Web-Größe und Originalgröße
-  - Titel, Konzept-Text, Seed, Datum
-  - `galerie.json` für die Website
+- 🔨 Serien und Favoriten als **Galerie-Paket** exportieren:
+  - ✅ Serie mit `galerie.html`, `edition.json` und Metadaten je Werk (Titel, Konzept-Text, Seed, Merkmale) – Block D
+  - ⬜ Bilder zusätzlich in Web-Größe (Vorschaubilder), Datum
+  - ⬜ Favoriten als Galerie-Paket
 - ⬜ **Einbettbare Werke:** Web-Seite einer Skizze als `<iframe>`-Schnipsel zum Kopieren
 - ⬜ **Automatisch veröffentlichen**, je nach Plattform:
   - GitHub Pages / Netlify: per Git-Push
@@ -169,11 +169,11 @@ Ziel: Was diese Bibliotheken in Processing können, soll es in plotart auch gebe
 - ⬜ Fehler erklären lassen, Varianten vorschlagen, Code kommentieren
 - ⬜ KI-Kurator: aus vielen Seeds die stärksten auswählen
 
-## ⬜ D – Editionen & Präsentation
+## ✅ D – Editionen & Präsentation (Version 1.13.0, Beispiele 62–63)
 
-- ⬜ Editionen wie bei Art Blocks und fxhash: `feature("Palette", name)`, Seltenheiten, Metadaten
-- ⬜ Galerie-Seite einer Serie (siehe Website-Anbindung)
-- ⬜ Großformat-Druck: auf mehrere Blätter aufteilen
+- ✅ Editionen wie bei Art Blocks und fxhash: `feature()`, Seltenheiten im Studio („Merkmale → Seltenheit prüfen“), Metadaten je Werk (`metadata/<seed>.json`, `edition.json`)
+- ✅ Galerie-Seite einer Serie: `galerie.html` mit Filtern, Sortierung nach Seltenheit, Detailansicht
+- ✅ Großformat-Druck: auf mehrere Blätter aufteilen (`tiles.py`, Studio „Großformat drucken“, `--tiles`), mit Schnittmarken, Klebe-Markierungen, PDF, SVG und Übersicht
 
 ## ✅ E – Live-Auftritt & VJ (Version 1.12.0, Beispiele 60–61)
 

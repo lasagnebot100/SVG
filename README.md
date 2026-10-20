@@ -20,6 +20,7 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Bilder & Daten:** Fotos laden und Pixel abfragen (Stippling, Schraffur …), CSV/JSON (auch mit Dezimalkomma), SVG-Import, **Text als Pfade** aus TrueType-Schriften
 - **Pixel & Filter:** `pixels` als numpy-Array, 16 Filter (Weichzeichnen, Körnung, Dithering …), `filter()` auf die ganze Leinwand, `snapshot()` für Feedback-Effekte
 - **Kuration:** Varianten-Raster, Favoriten mit Vorschaubild, Versionsverlauf, Serien-Export mit Kontaktbogen, Regler-Keyframes für Animationen
+- **Editionen & Großformat:** Merkmale mit `feature()` und Seltenheiten wie bei Art Blocks/fxhash, Metadaten und Galerie-Seite; große Drucke auf mehreren A4-/A3-Blättern mit Schnittmarken
 - **Ton & Interaktion:** `load_audio()` mit Pegel, Spektrum, Bass/Mitten/Höhen und Beat-Erkennung, Ton im Video; Maus, Tastatur und MIDI live im Studio, Aufnahme der Eingaben für den Export
 - **3D in der Skizze:** `box()`, `sphere()`, `torus()`, `mesh()`, Kamera, Lichter, `orbit_control()`; Export als **glTF (.glb)/OBJ**, echte 3D-Objekte in Blender, **verdeckte Linien entfernen** für 3D-Plots
 - **TouchDesigner & OSC:** Studio per OSC fernsteuern, `osc()`/`osc_send()` in Skizzen, Skizzen als Live-Textur in einem Script TOP
@@ -36,7 +37,7 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
   - Funktions-Plotter mit Formeln als Text, numerische Integration als Bild (Riemann, Trapez, Simpson)
   - Differentialgleichungen: RK4, Phasenporträts, seltsame Attraktoren
   - Fraktale: Mandelbrot, Julia, Newton, IFS, Fractal Flames; Domain Coloring komplexer Funktionen
-- **61 Beispiel-Skizzen** zum Lernen und Weiterbauen
+- **63 Beispiel-Skizzen** zum Lernen und Weiterbauen
 - **Reproduzierbar:** gleicher Seed + gleiche Regler = identisches Bild
 - **Zusätzlich: 7 fertige Plotter-Generatoren** mit Reglern, ganz ohne Code
 
@@ -173,6 +174,38 @@ text_shape("Hallo", 50, 200, 120)             # Text als echte Form (Plotter, Bl
 - **🕘 Verlauf:** Jedes Speichern archiviert die vorige Fassung (die letzten 50) in `skizzen/.plotart/verlauf/`. Ältere Fassungen lassen sich mit einem Klick laden.
 - **🗂 Serie exportieren:** Viele Seeds auf einmal als PNG, SVG und/oder Plotter-SVG, mit **Kontaktbogen** und `serie.json`. Per Kommandozeile: `python3 -m plotart sketch 06 -n 24 --sheet --png`.
 - **◆ Regler-Keyframes** (Animationen): Bild wählen, Regler einstellen, ◆ klicken – zwischen den Keyframes wird weich übergeblendet. Das wirkt für alle `param()`, die in `draw()` abgefragt werden; es gilt auch für Video- und Blender-Export.
+
+## Editionen & Großformat
+
+Eine Skizze als **Edition** wie bei Art Blocks oder fxhash: Jeder Seed ist ein eigenes Werk mit eigenen Merkmalen.
+
+```python
+palette_name = feature("Palette", random_choice(["nacht", "bauhaus", "risograph"], [6, 3, 1]))
+goldrand = feature("Goldrand", random_choice([True, False], [1, 19]))   # selten: 5 %
+```
+
+- **`feature(name, wert)`** hält ein Merkmal fest und gibt den Wert unverändert zurück.
+- **Merkmale im Studio:** Unter den Reglern stehen die Merkmale des aktuellen Seeds.
+  - **Seltenheit prüfen** wertet 50, 100 oder 250 Seeds aus und zeigt die Anteile als Balken.
+  - Ein Klick auf einen Wert springt zum ersten Seed mit diesem Wert.
+- **Serien-Export als Edition:** Hat die Skizze Merkmale, schreibt der Serien-Export zusätzlich:
+  - `metadata/<seed>.json` je Werk im üblichen Galerie-/NFT-Format (Name, Beschreibung, Bild, `attributes`, Seltenheitsrang),
+  - `edition.json` mit allen Merkmalen und Anteilen,
+  - `galerie.html`: eine eigenständige Galerie-Seite mit Filtern je Merkmal, Sortierung nach Seltenheit und Detailansicht – direkt auf eine Website hochladbar.
+  - Titel und Beschreibung kommen aus dem Konzept (Docstring); Künstler/in ist ein eigenes Feld bzw. `--artist`.
+- **🧩 Großformat drucken:** verteilt ein Werk auf mehrere A4-, A3- oder Letter-Blätter.
+  - Hoch- oder Querformat wird automatisch gewählt, alle Blätter sind gleich groß.
+  - Je Blatt Schnittmarken, blaue Klebe-Markierungen (Überlappung) und eine Beschriftung.
+  - Ausgabe: PNG je Blatt, `alle_blaetter.pdf`, SVG je Kachel in Millimetern (auch für den Plotter) und `uebersicht.png` zum Zusammensetzen.
+  - Skizzen in mm werden 1 : 1 gedruckt; bei Pixeln oder zum Vergrößern die Druckbreite in mm angeben.
+
+```bash
+python3 -m plotart sketch 62 -n 50 --sheet --png --artist "Name"     # Edition mit Galerie
+python3 -m plotart sketch 63 --tiles A4                               # Plakat A2 auf A4-Blättern
+python3 -m plotart sketch 44 --tiles A3 --print-width 1000 --dpi 300  # 1 m breit auf A3
+```
+
+- **Beispiele:** 62 (Edition: Fenster ins Raster), 63 (Höhenlinien-Plakat in A2).
 
 ## Ton & Interaktion
 
@@ -511,6 +544,8 @@ Farben: `fill(200)`, `fill(255, 0, 0)`, `fill(255, 0, 0, 128)`, `fill("#1f5fbf")
 | 59 | Mathe: Julia-Flug (GPU-Shader) | c wandert auf einem Kreis, nahtloser Loop |
 | 60 | Live: Visuals im Takt | `tempo()`, `beat_pulse()`, `on_beat()`, Länge passend zum Tempo |
 | 61 | Live-Coding: Der Zustand bleibt | Teilchenfeld zum Ändern im laufenden Betrieb |
+| 62 | Edition: Fenster ins Raster | `feature()` mit gewichteten Merkmalen, seltener Goldrand |
+| 63 | Großformat: Höhenlinien-Plakat in A2 | in mm, für `--tiles A4` bzw. „Großformat drucken“ |
 
 Zu finden in `plotart/sketch/examples/`, im Studio unter „Beispiele …“, oder per Kommandozeile, z. B. `python3 -m plotart sketch 06 --png`.
 
@@ -629,6 +664,7 @@ plotart/
 │   ├── audio.py       Ton-Analyse · occlusion.py: verdeckte Linien · geometry2d.py: Schraffur, shapely
 │   ├── shader.py      GPU-Shader: GLSL-Vorbau, moderngl (Desktop), WebGL2 (Browser)
 │   ├── algorithms/    Baukasten: growth.py, simulation.py, patterns.py, mathart.py (Mathe-Kunst)
+│   ├── edition.py     Merkmale, Seltenheiten, Metadaten, Galerie · tiles.py: Großformat auf mehreren Blättern
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
 ├── tempo.py           Ableton Link für den Live-Modus
@@ -651,12 +687,11 @@ docs/                  To-do-Liste (ROADMAP.md), TouchDesigner, Bibliotheken, Al
 - ~~Stufe 3 – Blender~~ ✓
 - ~~Stufe 4 – Bilder & Daten~~ ✓ · ~~Stufe 5 – Pixel & Filter~~ ✓ · ~~Stufe 6 – Kuration & Serien~~ ✓
 - ~~Stufe 7 – Ton & Interaktion~~ ✓ · ~~Stufe 8 – 3D in der Skizze~~ ✓ (dazu OSC/TouchDesigner, Web-Seiten-Export)
-- ~~Stufe 10 – GPU-Shader~~ ✓ · ~~Algorithmen-Baukasten~~ ✓ · ~~Mathe-Kunst~~ ✓ · ~~Live & VJ~~ ✓
+- ~~Stufe 10 – GPU-Shader~~ ✓ · ~~Algorithmen-Baukasten~~ ✓ · ~~Mathe-Kunst~~ ✓ · ~~Live & VJ~~ ✓ · ~~Editionen & Großformat~~ ✓
 - Alles Weitere steht in der **[To-do-Liste](docs/ROADMAP.md)**:
   - Website-Anbindung
   - Plotter direkt ansteuern
   - KI-Assistent
-  - Editionen
   - neue Eingaben und Ausgabemaschinen
   - Kurs
   - Desktop-App

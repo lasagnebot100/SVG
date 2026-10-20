@@ -161,11 +161,13 @@ def _run_sketch_cmd(args) -> int:
             if sys.stdout.isatty():
                 print(f"\r  Variante {i}/{n}", end="", flush=True)
         res = export_series(source, out_dir, seeds, params, formats=formats, scale=args.scale, stem=stem,
-                            pen_width=args.pen, hidden_lines=args.hidden_lines, progress=progress)
+                            pen_width=args.pen, hidden_lines=args.hidden_lines, progress=progress,
+                            artist=args.artist)
         if sys.stdout.isatty():
             print()
         print(f"✓ {res['dir']}  –  {res['count']} Varianten" + (f", {res['errors']} mit Fehler" if res["errors"] else "")
-              + (f", Kontaktbogen: {os.path.basename(res['sheet'])}" if res.get("sheet") else ""))
+              + (f", Kontaktbogen: {os.path.basename(res['sheet'])}" if res.get("sheet") else "")
+              + (", Galerie: galerie.html" if res.get("gallery") else ""))
         return 1 if res["errors"] else 0
     for i in range(args.count):
         seed = args.seed + i
@@ -199,6 +201,18 @@ def _run_sketch_cmd(args) -> int:
         os.makedirs(os.path.dirname(os.path.abspath(base)) or ".", exist_ok=True)
         written = []
         meta = {"seed": seed, "params": {p.name: params.get(p.name, p.default) for p in sk.param_specs}}
+        if args.tiles:
+            from .sketch.tiles import TileError, export_tiles
+            from .viewer import sketch_doc
+            try:
+                res = export_tiles(sk, f"{base}_grossformat_{args.tiles}", args.tiles, None, args.print_width,
+                                   args.overlap, dpi=args.dpi, title=sketch_doc(source)[0])
+            except TileError as exc:
+                print(f"✗ {exc}", file=sys.stderr)
+                status = 1
+            else:
+                w, h = res["size_mm"]
+                written.append(f"{res['dir']} ({res['sheets']} Blätter {args.tiles}, {w / 10:g} × {h / 10:g} cm)")
         if want_svg:
             with open(base + ".svg", "w", encoding="utf-8") as f:
                 f.write(render_svg(sk, meta))
@@ -239,7 +253,8 @@ def _run_sketch_cmd(args) -> int:
                 written.append(base + ".obj")
         elif args.export3d:
             print("Hinweis: keine 3D-Formen in der Skizze – kein 3D-Export.")
-        print(f"✓ Seed {seed} in {ms:.0f} ms → " + ", ".join(written))
+        if written:
+            print(f"✓ Seed {seed} in {ms:.0f} ms → " + ", ".join(written))
     return status
 
 
@@ -276,7 +291,14 @@ def main(argv=None):
                     help="zusätzlich eigenständige Web-Seite (Seed-Navigation, Regler; Python per Pyodide)")
     sk.add_argument("--no-svg", action="store_true", help="kein Farb-SVG schreiben")
     sk.add_argument("--sheet", action="store_true",
-                    help="Serie: alle Seeds (-s, -n) in einen Ordner mit Kontaktbogen und serie.json")
+                    help="Serie: alle Seeds (-s, -n) in einen Ordner mit Kontaktbogen und serie.json "
+                         "(mit feature() auch Galerie-Seite und Metadaten)")
+    sk.add_argument("--artist", default="", help="Serie: Künstler/in für Galerie und Metadaten")
+    big = sk.add_argument_group("Großformat (auf mehrere Blätter verteilt, braucht Pillow)")
+    big.add_argument("--tiles", metavar="PAPIER", help="Blätter erzeugen, z. B. A4 oder A3")
+    big.add_argument("--print-width", type=float, metavar="MM", help="Druckbreite in mm (bei Skizzen in Pixeln nötig)")
+    big.add_argument("--overlap", type=float, default=10.0, metavar="MM", help="Überlappung zum Kleben (Standard 10)")
+    big.add_argument("--dpi", type=int, default=200, help="Auflösung der Blätter (Standard 200)")
     anim = sk.add_argument_group("Animation (Skizzen mit draw())")
     anim.add_argument("--mp4", action="store_true", help="als MP4-Video exportieren (braucht ffmpeg)")
     anim.add_argument("--webm", action="store_true", help="als WebM-Video exportieren (braucht ffmpeg)")

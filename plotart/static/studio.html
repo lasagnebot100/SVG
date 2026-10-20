@@ -165,6 +165,16 @@
 #animView:focus{outline:none}#animView.live:focus{outline:2px solid #1f5fbf}
 #tlRec.rec{color:#d02020;animation:blink 1s infinite}@keyframes blink{50%{opacity:.4}}
   .livebar { border-top: none; padding-top: 0; }
+  .traits { font-size: 12.5px; margin-bottom: 10px; }
+  .traits .row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .traits .row b { font-weight: 600; }
+  .traits h3 { font-size: 12px; margin: 10px 0 4px; color: var(--muted); font-weight: 600; }
+  .traits .val { display: grid; grid-template-columns: 1fr 70px 44px; gap: 6px; align-items: center; padding: 1px 0; cursor: pointer; }
+  .traits .val.cur { color: var(--accent); font-weight: 600; }
+  .traits .bar { height: 6px; border-radius: 3px; background: var(--accent-soft); overflow: hidden; }
+  .traits .bar i { display: block; height: 100%; background: var(--accent); }
+  .traits .pct { text-align: right; color: var(--muted); }
+  #rarityCount { font-size: 11px; padding: 2px 3px; }
   #tlBpm { width: 66px; padding: 3px 4px; font-size: 12px; }
   .beatdot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: none; }
   .beatdot.hit { background: var(--accent); }
@@ -256,6 +266,13 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
     <div id="params"><p class="empty">Regler entstehen automatisch aus deiner Skizze, z. B.<br>
       <code>n = param("Anzahl", 40, 1, 200)</code></p></div>
 
+    <div id="featureBox" hidden>
+      <h2>Merkmale <span><select id="rarityCount" title="Wie viele Seeds ab dem aktuellen ausgewertet werden">
+        <option value="50">50</option><option value="100" selected>100</option><option value="250">250</option></select>
+        <button class="btn" id="rarityBtn" title="Merkmale vieler Seeds auswerten: Wie selten ist jeder Wert?">Seltenheit prüfen</button></span></h2>
+      <div class="traits" id="featureList"></div>
+      <div class="traits" id="rarityResult"></div>
+    </div>
     <h2>Favoriten <span class="vidmsg" id="favCount"></span></h2>
     <div class="favs" id="favs"></div>
     <p class="empty" id="favEmpty">Mit ★ merkst du dir Seed und Regler einer Variante.</p>
@@ -291,11 +308,29 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
         <div class="field" style="font-size:12.5px">
           <label style="justify-content:flex-start;gap:12px"><span><input type="checkbox" id="serPng" checked> PNG</span>
             <span><input type="checkbox" id="serSvg"> SVG</span><span><input type="checkbox" id="serPlot"> Plotter</span></label>
-          <div class="help">PNG in der Auflösung von „Export“ unten · mit Kontaktbogen</div>
+          <div class="help">PNG in der Auflösung von „Export“ unten · mit Kontaktbogen; mit feature() auch Galerie-Seite und Metadaten</div>
         </div>
+        <div class="field"><label>Künstler/in (für Galerie und Metadaten)</label><input type="text" id="serArtist" placeholder="optional"></div>
         <button class="btn primary" id="serStart" style="width:100%;justify-content:center">🗂 Serie exportieren</button>
         <div id="serJob" hidden><div class="progress"><i id="serBar"></i></div><div class="vidmsg" id="serMsg"></div></div>
         <div class="vidmsg" id="serResult"></div>
+      </div>
+      <h2>Großformat drucken</h2>
+      <div class="vidbox">
+        <div class="row2">
+          <div class="field"><label>Papier</label><select id="tilePaper">
+            <option value="A4" selected>A4</option><option value="A3">A3</option><option value="Letter">Letter</option></select></div>
+          <div class="field"><label>Druckbreite (mm)</label><input type="number" id="tileWidth" min="50" max="20000" placeholder="1:1"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Überlappung (mm)</label><input type="number" id="tileOverlap" min="0" max="40" value="10"></div>
+          <div class="field"><label>Auflösung</label><select id="tileDpi">
+            <option value="150">150 dpi</option><option value="200" selected>200 dpi</option><option value="300">300 dpi</option></select></div>
+        </div>
+        <div class="help" id="tileInfo">Auf mehrere Blätter verteilt, mit Schnittmarken und Klebe-Markierungen; PNG, PDF, SVG und Übersicht</div>
+        <button class="btn primary" id="tileStart" style="width:100%;justify-content:center">🧩 Blätter erzeugen</button>
+        <div id="tileJob" hidden><div class="progress"><i id="tileBar"></i></div><div class="vidmsg" id="tileMsg"></div></div>
+        <div class="vidmsg" id="tileResult"></div>
       </div>
 
       <h2>Daten <span><button class="btn" id="assetUp" title="Bilder, CSV, JSON, SVG, Schriften hochladen">＋ Datei</button></span></h2>
@@ -513,6 +548,8 @@ async function runNow() {
     // on errors keep the previous sliders (params after the error line were never declared)
     if (res.sketch_error) { markErrorLine(res.sketch_error.line); stopAnimation(false); return; }
     buildParams(res.params);
+    showFeatures(res.features);
+    setTimeout(updateTileInfo, 0);                 // state.width/unit are set just below
     Object.assign(state, { svg: res.svg, width: res.width, height: res.height, unit: res.unit, animated: res.animated });
     $("exp3d").hidden = !res.has3d;
     if (res.has3d && !state.hiddenTouched) $("hiddenLines").checked = true;   // 3D plots need it almost always
@@ -1759,6 +1796,7 @@ $("history").onchange = async () => {
 };
 
 // ================================================================== series export (stage 6)
+try { $("serArtist").value = localStorage.getItem("plotart-artist") || ""; } catch (e) {}
 $("serStart").onclick = async () => {
   const from = parseInt($("serFrom").value) || 1, count = Math.max(1, Math.min(1000, parseInt($("serCount").value) || 12));
   const formats = [["png", $("serPng")], ["svg", $("serSvg")], ["plotter", $("serPlot")]].filter(([, c]) => c.checked).map(([f]) => f);
@@ -1769,9 +1807,10 @@ $("serStart").onclick = async () => {
   try {
     job = await backend.call("export_start", { source: getCode(), params: paramsWithKeys(), seed: from, format: "series",
       seeds, formats, scale: parseFloat($("pngScale").value) || 1, pen_width: parseFloat($("penWidth").value) || 0.45,
-      hidden_lines: $("hiddenLines").checked,
+      hidden_lines: $("hiddenLines").checked, artist: $("serArtist").value.trim(),
       name: fileStem() });
   } catch (e) { $("serResult").className = "vidmsg err"; $("serResult").textContent = e.message; return; }
+  try { localStorage.setItem("plotart-artist", $("serArtist").value.trim()); } catch (e) {}
   $("serJob").hidden = false; $("serStart").disabled = true;
   let st = job;
   while (st.state === "running") {
@@ -1782,9 +1821,102 @@ $("serStart").onclick = async () => {
   }
   $("serJob").hidden = true; $("serStart").disabled = false;
   if (st.state === "done") {
-    $("serResult").innerHTML = `✓ ${count} Varianten in ${fmtNum(st.seconds)} s · ${fileLink(st)} (mit Kontaktbogen, auch im Ordner output/)`;
+    $("serResult").innerHTML = `✓ ${count} Varianten in ${fmtNum(st.seconds)} s · ${fileLink(st)} (mit Kontaktbogen` +
+      `${state.features && Object.keys(state.features).length ? ", galerie.html und Metadaten" : ""}, auch im Ordner output/)`;
     $("serResult").querySelector("a").click();
   } else { $("serResult").className = "vidmsg err"; $("serResult").textContent = st.error || "Fehlgeschlagen"; }
+};
+
+// ================================================================== large-format print (tiles)
+function updateTileInfo() {
+  const w = parseFloat($("tileWidth").value);
+  if (!w && state.unit !== "mm") { $("tileInfo").textContent = "Skizze in Pixeln: bitte die Druckbreite in mm angeben"; return; }
+  const W = w || state.width, H = W * state.height / state.width;
+  $("tileInfo").textContent = `Druckgröße ${fmtNum(W / 10)} × ${fmtNum(H / 10)} cm · Schnittmarken, Klebe-Markierungen, PNG, PDF, SVG, Übersicht`;
+}
+["tileWidth", "tilePaper"].forEach(id => $(id).addEventListener("input", updateTileInfo));
+$("tileStart").onclick = async () => {
+  const width = parseFloat($("tileWidth").value) || null;
+  if (!width && state.unit !== "mm") { toast("Bitte die Druckbreite in mm angeben"); $("tileWidth").focus(); return; }
+  $("tileResult").innerHTML = ""; $("tileResult").className = "vidmsg";
+  let job;
+  try {
+    job = await backend.call("export_start", { source: getCode(), params: paramsWithKeys(), seed: state.seed,
+      format: "tiles", paper: $("tilePaper").value, print_width: width, overlap: parseFloat($("tileOverlap").value) || 0,
+      dpi: parseInt($("tileDpi").value, 10), name: fileStem() });
+  } catch (e) { $("tileResult").className = "vidmsg err"; $("tileResult").textContent = e.message; return; }
+  $("tileJob").hidden = false; $("tileStart").disabled = true;
+  let st = job;
+  while (st.state === "running") {
+    await new Promise(r => setTimeout(r, 400));
+    try { st = await backend.call("export_status", { id: job.id }); } catch (e) { st = { state: "error", error: e.message }; }
+    $("tileBar").style.width = (st.total ? 100 * st.progress / st.total : 0) + "%";
+    $("tileMsg").textContent = st.total ? `Blatt ${st.progress} / ${st.total}` : "rechnet …";
+  }
+  $("tileJob").hidden = true; $("tileStart").disabled = false;
+  if (st.state === "done") {
+    $("tileResult").innerHTML = `✓ ${st.total} Blätter in ${fmtNum(st.seconds)} s · ${fileLink(st)} (mit alle_blaetter.pdf und uebersicht.png, auch im Ordner output/)`;
+    $("tileResult").querySelector("a").click();
+  } else { $("tileResult").className = "vidmsg err"; $("tileResult").textContent = st.error || "Fehlgeschlagen"; }
+};
+
+// ================================================================== editions: traits and rarities (feature())
+const rarity = { gen: 0, entries: null, key: null };
+const rarityKey = () => getCode() + "\u0000" + JSON.stringify(state.params);
+function showFeatures(features) {
+  state.features = features || {};
+  const names = Object.keys(state.features);
+  $("featureBox").hidden = !names.length;
+  $("featureList").innerHTML = names.map(n =>
+    `<div class="row"><span>${esc(n)}</span><b>${esc(state.features[n])}</b></div>`).join("");
+  if (rarity.entries && rarity.key === rarityKey()) renderRarity();     // same code and sliders: still valid
+  else { rarity.entries = null; $("rarityResult").innerHTML = ""; }
+}
+$("rarityBtn").onclick = async () => {
+  const gen = ++rarity.gen, n = parseInt($("rarityCount").value, 10) || 100;
+  const seeds = Array.from({ length: n }, (_, i) => state.seed + i);
+  const entries = [];
+  rarity.key = rarityKey();
+  $("rarityBtn").disabled = true;
+  try {
+    while (entries.length < n && gen === rarity.gen) {
+      $("rarityResult").textContent = `wertet aus … ${entries.length} / ${n}`;
+      const r = await backend.call("edition_features", { source: getCode(), params: paramsWithKeys(),
+                                                         seeds: seeds.slice(entries.length), budget_ms: 1200 });
+      if (!r.entries.length) break;
+      entries.push(...r.entries);
+    }
+  } catch (e) { $("rarityResult").textContent = e.message; return; }
+  finally { $("rarityBtn").disabled = false; }
+  if (gen !== rarity.gen) return;
+  rarity.entries = entries;
+  renderRarity();
+};
+function renderRarity() {
+  const ok = rarity.entries.filter(e => e.features), n = ok.length, failed = rarity.entries.length - n;
+  if (!n) { $("rarityResult").textContent = "Keine Variante ohne Fehler."; return; }
+  const names = [];
+  for (const e of ok) for (const k of Object.keys(e.features)) if (!names.includes(k)) names.push(k);
+  const pct = (c) => (100 * c / n).toLocaleString("de-AT", { maximumFractionDigits: 1 }) + " %";
+  let html = `<div class="row"><span>${n} Seeds ab ${ok[0].seed}</span>${failed ? `<span>${failed} mit Fehler</span>` : ""}</div>`;
+  for (const name of names) {
+    const counts = new Map();
+    for (const e of ok) {
+      const v = JSON.stringify(e.features[name] ?? "–");
+      if (!counts.has(v)) counts.set(v, { count: 0, first: e.seed });
+      counts.get(v).count++;
+    }
+    const cur = JSON.stringify(state.features[name] ?? "–");
+    html += `<h3>${esc(name)}</h3>` + [...counts].sort((a, b) => a[1].count - b[1].count).map(([v, c]) =>
+      `<div class="val${v === cur ? " cur" : ""}" data-seed="${c.first}" title="Zum ersten Seed mit diesem Wert (${c.first})">` +
+      `<span>${esc(JSON.parse(v))}</span><span class="bar"><i style="width:${100 * c.count / n}%"></i></span>` +
+      `<span class="pct">${pct(c.count)}</span></div>`).join("");
+  }
+  $("rarityResult").innerHTML = html;
+}
+$("rarityResult").onclick = (e) => {
+  const v = e.target.closest(".val");
+  if (v) { state.seed = parseInt(v.dataset.seed, 10); run(0); }
 };
 
 // ================================================================== data files (stage 4)

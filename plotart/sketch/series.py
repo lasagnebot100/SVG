@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Callable
 
 from ..svg import to_svg
+from ..viewer import sketch_doc
 from .data import DataError
+from .edition import write_edition
 from .export import render_png, to_plotter
 from .fonts import find_font
 from .render_svg import render_svg
@@ -30,7 +32,7 @@ def contact_sheet(thumbs: list[tuple[str, object]], cols: int | None = None, cel
     sheet = Image.new("RGB", (W, H), (236, 235, 231))
     d = ImageDraw.Draw(sheet)
     try:
-        font =ImageFont.truetype(find_font("sans"), 14)
+        font = ImageFont.truetype(find_font("sans"), 14)
         tfont = ImageFont.truetype(find_font("sans-bold"), 18)
     except (OSError, DataError):
         font = tfont = ImageFont.load_default()
@@ -53,8 +55,13 @@ def export_series(source: str, out_dir: str | Path, seeds: list[int], params: di
                   formats=("png",), scale: float | None = None, sheet: bool = True, pen_width: float = 0.45,
                   hidden_lines: bool = False,
                   stem: str = "skizze", progress: Callable[[int, int], None] | None = None,
-                  should_stop: Callable[[], bool] | None = None, zip_path: str | Path | None = None) -> dict:
-    """Render every seed into out_dir (PNG/SVG/plotter-SVG), plus kontaktbogen.png and serie.json."""
+                  should_stop: Callable[[], bool] | None = None, zip_path: str | Path | None = None,
+                  title: str | None = None, description: str | None = None, artist: str = "") -> dict:
+    """Render every seed into out_dir (PNG/SVG/plotter-SVG), plus kontaktbogen.png and serie.json.
+
+    As an edition also metadata/<seed>.json, edition.json (traits and rarities from feature()) and
+    galerie.html; title and description default to the sketch's concept (docstring).
+    """
     from PIL import Image
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -69,6 +76,7 @@ def export_series(source: str, out_dir: str | Path, seeds: list[int], params: di
             thumbs.append((f"Seed {seed} – Fehler", None))
         else:
             entry["params"] = {p.name: (params or {}).get(p.name, p.default) for p in sk.param_specs}
+            entry["features"] = dict(sk.features)
             base = out / f"{stem}_{seed}"
             png = None
             if "png" in formats or sheet:
@@ -94,9 +102,16 @@ def export_series(source: str, out_dir: str | Path, seeds: list[int], params: di
         result["sheet"] = str(out / "kontaktbogen.png")
     (out / "serie.json").write_text(json.dumps({"skizze": stem, "varianten": entries}, ensure_ascii=False,
                                                indent=1), encoding="utf-8")
+    if any("features" in e for e in entries):
+        doc_title, doc_text = sketch_doc(source)
+        images = {e["seed"]: next((f for f in e["files"] if f.endswith(".png")), e["files"][0] if e["files"] else None)
+                  for e in entries if "features" in e}
+        write_edition(out, entries, title or doc_title or stem, doc_text if description is None else description,
+                      artist, images)
+        result["gallery"] = str(out / "galerie.html")
     if zip_path:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-            for f in sorted(out.iterdir()):
-                z.write(f, f"{out.name}/{f.name}")
+            for f in sorted(p for p in out.rglob("*") if p.is_file()):     # incl. metadata/
+                z.write(f, f"{out.name}/{f.relative_to(out).as_posix()}")
         result["zip"] = str(zip_path)
     return result

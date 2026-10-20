@@ -5,7 +5,7 @@ plotart ist ein Werkzeug für **generative und algorithmische Kunst** in Python.
 - Export als PNG, SVG, Video, 3D, Blender und Web-Seite,
 - Plotter-Export als Zusatz-Feature.
 
-Version 1.12.0. Die To-do-Liste steht in **`docs/ROADMAP.md`**, die Funktionsübersicht in **`README.md`**.
+Version 1.13.0. Die To-do-Liste steht in **`docs/ROADMAP.md`**, die Funktionsübersicht in **`README.md`**.
 
 ## Vorgaben des Nutzers (immer einhalten)
 
@@ -64,6 +64,7 @@ python tools/build_web.py --out site        # Browser-Version (Pyodide)
   - `plotart/tempo.py`: Ableton Link (im Server-Prozess); `plotart/videoout.py`: NDI/Spout (im Worker)
   - `plotart/static/ausgabe.html`: Ausgabefenster, bekommt die Bilder per BroadcastChannel vom Studio
   - Live-Coding: `Animation.hot_swap()` in `animation.py`, angestoßen von `anim_live` mit `hot: true`
+  - `plotart/sketch/edition.py`: Merkmale, Seltenheiten, Metadaten, `galerie.html`; `plotart/sketch/tiles.py`: Großformat
   - `plotart/viewer.py`: Web-Seiten-Export
 
 ## Regeln im Code
@@ -75,7 +76,7 @@ python tools/build_web.py --out site        # Browser-Version (Pyodide)
 - **Zufall immer über `sk.rng`** bzw. `needs_rng=True`, damit derselbe Seed dasselbe Bild ergibt.
 - **Namen und Texte:** Texte für Nutzer und Funktionsbeschreibungen auf Deutsch; die API-Namen auf Englisch (snake_case).
 - **Neue Funktionen bekommen immer:**
-  - eine Beispiel-Skizze (fortlaufende Nummer, also als Nächstes 62),
+  - eine Beispiel-Skizze (fortlaufende Nummer, also als Nächstes 64),
   - Tests in `tests/`,
   - einen Eintrag im README.
 - **Browser-Version:** Braucht eine neue Funktion ein Pyodide-Paket (numpy, shapely, Pillow), die Erkennung in `tools/build_web.py` und `plotart/viewer.py` ergänzen.
@@ -86,7 +87,7 @@ python tools/build_web.py --out site        # Browser-Version (Pyodide)
 - **Reihenfolge abgestimmt** (19. Oktober 2026), jeweils als eigener Block mit Version, Beispielen, Tests, README:
   1. ✅ II – Mathe-Kunst (1.11.0)
   2. ✅ E – Live/VJ (1.12.0): Live-Coding ohne Neustart, Takt (Tap, Ableton Link), Ausgabefenster, NDI/Spout
-  3. D – Editionen: Merkmale und Seltenheiten, Editions-Export, Galerie-Seite, Großformat in Kacheln
+  3. ✅ D – Editionen (1.13.0): feature(), Seltenheiten, Metadaten, Galerie-Seite, Großformat in Kacheln
   4. I – Mehrsprachen-Studio: p5.js, Processing (Konverter und Ausführung), React-Vorlagen, dann R und Kotlin
   5. C – KI-Assistent: wartet auf die Entscheidung des Nutzers zum (kostenpflichtigen) Anthropic-API-Schlüssel
 - **Werkzeuge am Rechner des Nutzers:** R, Java und Processing hat er nach eigener Aussage installiert; vor Block I prüfen (`Rscript`, `java`, `processing-java`). Node ist vorhanden, aber über nvm nicht aktiviert.

@@ -221,6 +221,14 @@ def anim_live(req: dict) -> dict:
             "log": fr.log, "sketch_error": fr.error, "osc_out": osc_out, "tempo": beat_info}
 
 
+def edition_features(req: dict) -> dict:
+    """Traits (feature()) of many seeds for the rarity overview – in chunks: {"seeds": [...], "budget_ms"}."""
+    from .sketch.edition import collect_features
+    entries, done = collect_features(req.get("source", ""), req.get("seeds") or [], req.get("params"),
+                                     float(req.get("budget_ms") or 1500) / 1000)
+    return {"entries": entries, "done": done}
+
+
 def audio_data(req: dict) -> dict:
     """An audio file of the sketch for playback in the browser (base64)."""
     from .sketch.audio import audio_file
@@ -266,13 +274,14 @@ COMMANDS = {
     "sketch_thumb": sketch_thumb,
     "sketch_3d": sketch_3d,
     "anim_live": anim_live,
+    "edition_features": edition_features,
     "audio_data": audio_data,
     "viewer_html": viewer_html,
     "export_capabilities": export_capabilities,
 }
 # commands that execute user code (the server runs them in a separate process)
 USER_CODE_COMMANDS = {"sketch_run", "sketch_plotter", "sketch_png", "anim_frames", "sketch_thumb", "sketch_3d",
-                      "anim_live", "audio_data"}
+                      "anim_live", "audio_data", "edition_features"}
 
 
 def dispatch(cmd: str, req: dict) -> dict:

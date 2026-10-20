@@ -31,7 +31,8 @@ PAGES = {"/": "studio.html", "/index.html": "studio.html", "/studio": "studio.ht
 FILES = {"/vendor/codemirror.js": ("vendor/codemirror.js", "text/javascript; charset=utf-8"),
          "/vendor/codemirror.css": ("vendor/codemirror.css", "text/css; charset=utf-8")}
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
-EXTENSIONS = {"mp4": "mp4", "webm": "webm", "gif": "gif", "png": "zip", "blend": "blend", "series": "zip"}
+EXTENSIONS = {"mp4": "mp4", "webm": "webm", "gif": "gif", "png": "zip", "blend": "blend", "series": "zip",
+              "tiles": "zip"}
 ASSET_TYPES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".csv", ".json", ".txt",
                ".svg", ".ttf", ".ttc", ".otf"}
 MAX_ASSET_BYTES = 50 * 1024 * 1024
@@ -60,9 +61,27 @@ def _export_entry(q, req):
                                 formats=req.get("formats") or ["png"], scale=req.get("scale"),
                                 pen_width=float(req.get("pen_width") or 0.45),
                                 hidden_lines=bool(req.get("hidden_lines")), stem=req.get("stem") or "skizze",
-                                progress=progress, zip_path=req["out_path"])
+                                progress=progress, zip_path=req["out_path"], artist=str(req.get("artist") or ""))
             res = {**res, "bytes": os.path.getsize(req["out_path"]), "width": 0, "height": 0}
             q.put(("done", res))
+            return
+        if req["format"] == "tiles":
+            import shutil
+            from .sketch import execute
+            from .sketch.tiles import TileError, export_tiles
+            from .viewer import sketch_doc
+            sk, _log, err, _ms = execute(req["source"], req.get("params"), int(req.get("seed") or 1))
+            if err:
+                raise ExportError(f"Die Skizze hat einen Fehler: {err['message']}")
+            out_dir = Path(req["out_path"]).with_suffix("")
+            try:
+                res = export_tiles(sk, out_dir, req.get("paper") or "A4", None, req.get("print_width") or None,
+                                   float(req.get("overlap") or 10), dpi=int(req.get("dpi") or 200),
+                                   title=sketch_doc(req["source"])[0], progress=progress)
+            except TileError as exc:
+                raise ExportError(str(exc)) from exc
+            shutil.make_archive(str(out_dir), "zip", out_dir.parent, out_dir.name)
+            q.put(("done", {**res, "bytes": os.path.getsize(req["out_path"]), "width": 0, "height": 0}))
             return
         if req["format"] == "blend":
             from .blender.make import BlenderError, make_blend
@@ -261,6 +280,9 @@ class Handler(BaseHTTPRequestHandler):
                     return {"error": "Keine Seeds angegeben"}
                 stem = f"{_safe_stem(req.get('name'))}_serie_{seeds[0]}-{seeds[-1]}"
                 req = {**req, "seeds": seeds, "frames": len(seeds), "stem": _safe_stem(req.get("name"))}
+            elif fmt == "tiles":
+                stem += f"_grossformat_{_safe_stem(req.get('paper') or 'A4')}"
+                req = {**req, "frames": 0}
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             req = {**req, "out_path": str((OUTPUT_DIR / f"{stem}.{EXTENSIONS[fmt]}").resolve()),
                    "asset_dirs": [str(self.sketches.dir)]}

@@ -23,7 +23,7 @@ OSC_VALUES: dict = {}       # address → list of values (latest message), share
 
 CATEGORIES = ["Leinwand", "Farbe & Stil", "Formen", "Eigene Formen", "Geometrie", "Transformation", "3D",
               "Text & Bild", "Bilder & Daten", "Pixel & Filter", "Shader", "Animation", "Ton & Interaktion", "Wachstum", "Simulation", "Muster", "Mathe-Kunst", "Zufall & Noise", "Mathe",
-              "Parameter", "Werkzeuge"]
+              "Parameter", "Edition", "Werkzeuge"]
 
 
 def api(category: str):
@@ -111,6 +111,7 @@ class Sketch:
         # recorded mouse/keyboard input, one entry per frame (live mode → export)
         self.input_track = self._param_values.pop("__input__", None) or []
         self.param_specs: list[Param] = []
+        self.features: dict = {}             # feature("Palette", "nacht") – traits of this variant (editions)
         self.ns: dict | None = None          # namespace of the running sketch
         # 3D state (see three.py) and input (mouse/keyboard/OSC, filled by the runner)
         self._m4 = I4
@@ -1208,6 +1209,24 @@ class Sketch:
                 ov = o[0] if isinstance(o, (tuple, list)) else o
                 if str(ov) == value:
                     return ov
+        return value
+
+    # ------------------------------------------------------------------ editions
+    @api("Edition")
+    def feature(self, name, value):
+        """Merkmal dieser Variante für Editionen (wie bei Art Blocks/fxhash): feature("Palette", "nacht").
+        Gibt den Wert unverändert zurück. Seltenheiten zeigt das Studio unter „Merkmale“."""
+        name = str(name).strip()
+        if not name:
+            raise SketchError("feature(): Der Name darf nicht leer sein")
+        shown = value                        # stored in a readable, JSON-friendly form
+        if isinstance(value, bool) or value is None:
+            shown = {True: "ja", False: "nein", None: "–"}[value]
+        elif isinstance(value, float):
+            shown = round(value, 4)
+        elif not isinstance(value, (int, str)):
+            shown = str(value)
+        self.features[name] = shown
         return value
 
 

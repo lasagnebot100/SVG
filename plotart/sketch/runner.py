@@ -230,9 +230,12 @@ def run_sketch(source: str, params: dict | None = None, seed: int = 1) -> dict:
     meta = {"seed": sk.seed, "params": {p.name: (params or {}).get(p.name, p.default) for p in sk.param_specs}}
     if sk._param_keys:
         meta["keyframes"] = sk._param_keys
+    if sk.features:
+        meta["features"] = dict(sk.features)
     return {
         "svg": render_svg(sk, meta) if not err else None,
         "params": [p.to_json() for p in sk.param_specs],
+        "features": dict(sk.features),
         "log": log,
         "error": err,
         "seed": sk.seed,
