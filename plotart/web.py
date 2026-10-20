@@ -29,7 +29,8 @@ PAGES = {"/": "studio.html", "/index.html": "studio.html", "/studio": "studio.ht
          "/generatoren": "generators.html", "/generatoren.html": "generators.html",
          "/ausgabe": "ausgabe.html", "/ausgabe.html": "ausgabe.html"}
 FILES = {"/vendor/codemirror.js": ("vendor/codemirror.js", "text/javascript; charset=utf-8"),
-         "/vendor/codemirror.css": ("vendor/codemirror.css", "text/css; charset=utf-8")}
+         "/vendor/codemirror.css": ("vendor/codemirror.css", "text/css; charset=utf-8"),
+         "/vendor/p5.min.js": ("vendor/p5.min.js", "text/javascript; charset=utf-8")}
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 EXTENSIONS = {"mp4": "mp4", "webm": "webm", "gif": "gif", "png": "zip", "blend": "blend", "series": "zip",
               "tiles": "zip"}

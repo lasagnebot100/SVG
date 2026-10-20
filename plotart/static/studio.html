@@ -163,7 +163,7 @@
 .check{display:flex;gap:6px;align-items:center;font-size:13px;margin:2px 0 10px;cursor:pointer}
 #animView.live{cursor:crosshair;outline:2px solid #1f5fbf;outline-offset:2px}
 #animView:focus{outline:none}#animView.live:focus{outline:2px solid #1f5fbf}
-#tlRec.rec{color:#d02020;animation:blink 1s infinite}@keyframes blink{50%{opacity:.4}}
+#tlRec.rec,#p5Rec.rec{color:#d02020;animation:blink 1s infinite}@keyframes blink{50%{opacity:.4}}
   .livebar { border-top: none; padding-top: 0; }
   .traits { font-size: 12.5px; margin-bottom: 10px; }
   .traits .row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
@@ -175,7 +175,9 @@
   .traits .bar i { display: block; height: 100%; background: var(--accent); }
   .traits .pct { text-align: right; color: var(--muted); }
   #rarityCount { font-size: 11px; padding: 2px 3px; }
-  body:not(.lang-processing) .pde-only, body.lang-processing .py-only { display: none !important; }
+  body:not([data-lang="python"]) .py-only, body:not([data-lang="processing"]) .pde-only,
+  body:not([data-lang="p5"]) .p5-only { display: none !important; }
+  #p5View { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; }
   #pdeFrames { width: 64px; }
   #tlBpm { width: 66px; padding: 3px 4px; font-size: 12px; }
   .beatdot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: none; }
@@ -188,19 +190,21 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
 .concept p{margin:0 0 6px}
 </style>
 </head>
-<body>
+<body data-lang="python">
 <header>
   <h1>plotart <span>Studio</span></h1>
   <select id="files" class="desktop-only" title="Skizzen im Ordner (Strg/⌘ + O)"><option value="">📁 Meine Skizzen …</option></select>
   <span class="filename desktop-only" id="fileName" title="Aktuelle Datei"></span>
   <select id="examples" title="Beispiel-Skizze laden"><option value="">Beispiele …</option></select>
   <select id="lang" title="Sprache des Sketches: plotart-Python oder Processing (Java)">
-    <option value="python">Python (plotart)</option><option value="processing">Processing (Java)</option></select>
+    <option value="python">Python (plotart)</option><option value="processing">Processing (Java)</option>
+    <option value="p5">p5.js (JavaScript)</option></select>
   <span class="sep"></span>
   <button class="btn primary" id="run" title="Ausführen (Strg/⌘ + Enter)">▶ Ausführen</button>
   <button class="btn py-only" id="live" title="Bei jeder Änderung automatisch ausführen">Live</button>
   <input type="number" id="pdeFrames" class="pde-only" min="1" max="600" value="120" title="Bilder bei Sketches mit draw()">
   <button class="btn pde-only" id="convertPde" title="Den Processing-Sketch nach plotart-Python übertragen">⇄ nach plotart</button>
+  <button class="btn p5-only" id="p5Rec" title="Video aufnehmen (WebM) – nochmal klicken beendet die Aufnahme">⏺ Video</button>
   <span class="sep"></span>
   <button class="btn" id="seedPrev" title="Vorheriger Seed (Alt + ←)">◀</button>
   <input type="number" id="seed" min="1" step="1" title="Seed – gleicher Seed = gleiches Bild">
@@ -217,7 +221,7 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
   <span class="sep"></span>
   <button class="btn" id="savePy" title="Speichern (Strg/⌘ + S) – Umschalt: Speichern unter">💾</button>
   <button class="btn web-only" id="openPy" title="Skizze (.py) öffnen">📂</button>
-  <input type="file" id="fileIn" accept=".py,.pde,text/x-python,text/plain" hidden>
+  <input type="file" id="fileIn" accept=".py,.pde,.js,text/x-python,text/javascript,text/plain" hidden>
   <button class="btn" id="help" title="Alle Funktionen (F1)">? Hilfe</button>
   <a class="btn" href="generatoren.html" title="Fertige Generatoren mit Reglern">Generatoren</a>
 </header>
@@ -228,7 +232,7 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
   </section>
   <section class="col">
     <div class="stage" id="stage"><div class="busy" id="busy"><span id="busyMsg">rechnet …</span> <button class="btn" id="cancel" hidden>✕ Abbrechen</button></div>
-      <div class="sheet" id="sheet"><div id="svgView"></div><canvas id="animView" hidden></canvas></div></div>
+      <div class="sheet" id="sheet"><div id="svgView"></div><canvas id="animView" hidden></canvas><iframe id="p5View" sandbox="allow-scripts" title="p5.js-Sketch" hidden></iframe></div></div>
     <div class="timeline" id="timeline">
       <button class="btn" id="tlStart" title="Zum Anfang (Pos1)">⏮</button>
       <button class="btn" id="tlPlay" title="Abspielen / Pause (Leertaste)">⏸</button>
@@ -371,12 +375,12 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
       </div>
     </div>
 
-    <h2>Export</h2>
-    <div class="field"><label>PNG-Auflösung</label>
+    <h2 class="py-only">Export</h2>
+    <div class="field py-only"><label>PNG-Auflösung</label>
       <select id="pngScale"></select></div>
-    <div class="field"><label>Stiftbreite für Plotter (mm)</label>
+    <div class="field py-only"><label>Stiftbreite für Plotter (mm)</label>
       <input type="number" id="penWidth" min="0.05" max="3" step="0.05" value="0.45"></div>
-    <label class="check" title="Linien, die von später gezeichneten Flächen verdeckt sind, werden nicht geplottet (3D, überlappende Formen)">
+    <label class="check py-only" title="Linien, die von später gezeichneten Flächen verdeckt sind, werden nicht geplottet (3D, überlappende Formen)">
       <input type="checkbox" id="hiddenLines"> Verdeckte Linien entfernen</label>
     <button class="btn py-only" id="expHtml" style="width:100%;justify-content:center;margin-bottom:8px"
       title="Eigenständige Web-Seite mit Seed-Navigation und Reglern – zum Teilen (Python läuft im Browser)">🌐 Als Web-Seite teilen</button>
@@ -546,6 +550,7 @@ function sketchPayload() { return { source: getCode(), params: paramsWithKeys(),
 
 async function runNow() {
   if (state.lang === "processing") return runPde();
+  if (state.lang === "p5") return runP5();
   const id = ++state.req;
   $("seed").value = state.seed;
   setBusy(true);
@@ -828,6 +833,11 @@ function buildParams(specs) {
       const ks = state.keys[p.name];
       if (state.animated && ks) { const k = ks.find(x => x[0] === anim.cur + 1); if (k) { k[1] = val; renderKeys(p.name); } }
       persist();
+      if (state.lang === "p5") {               // read in draw(): change it live, otherwise start again
+        const spec = p5state.specs.find(sp => sp.name === p.name);
+        if (spec && spec.live) p5Post({ type: "set", name: p.name, value: val }); else run(120);
+        return;
+      }
       if (!live.on) run(120);
     };
     if (p.kind === "choice") {
@@ -922,6 +932,7 @@ $("expSvg").onclick = () => {
 };
 
 $("expPng").onclick = () => {
+  if (state.lang === "p5") { p5Post({ type: "png" }); return; }   // the iframe sends its canvas back
   if (state.animated) {          // snapshot of what is on screen (includes accumulated trails)
     canvas.toBlob(b => b && deliver(b, `${fileStem()}_${state.seed}_bild${anim.cur + 1}.png`), "image/png");
     return;
@@ -1498,8 +1509,9 @@ async function openFile(name) {
 }
 
 async function save(saveAs) {
-  if (state.lang === "processing") {             // .pde: download (the sketch folder holds plotart sketches)
-    deliver(new Blob([getCode()], { type: "text/plain" }), fileStem() + ".pde");
+  if (state.lang !== "python") {                 // .pde / .js: download (the sketch folder holds plotart sketches)
+    const ext = state.lang === "processing" ? ".pde" : ".js";
+    deliver(new Blob([getCode()], { type: "text/plain" }), fileStem() + ext);
     return;
   }
   if (!DESKTOP) {
@@ -1565,7 +1577,8 @@ $("openPy").onclick = () => $("fileIn").click();
 $("fileIn").onchange = async () => {
   const f = $("fileIn").files[0]; if (!f) return;
   const text = await f.text();
-  setLang(f.name.toLowerCase().endsWith(".pde") ? "processing" : "python", text);
+  const fname = f.name.toLowerCase();
+  setLang(fname.endsWith(".pde") ? "processing" : fname.endsWith(".js") ? "p5" : "python", text);
   $("fileIn").value = ""; state.params = {}; state.specSig = null; run(0);
 };
 window.addEventListener("beforeunload", (e) => { if (DESKTOP && isDirty()) { e.preventDefault(); e.returnValue = ""; } });
@@ -1600,7 +1613,7 @@ $("shuffleParams").onclick = () => {
   state.specSig = null; run(0);
 };
 $("examples").onchange = () => {
-  const ex = (state.lang === "processing" ? state.pdeExamples : state.examples).find(e => e.name === $("examples").value);
+  const ex = examplesFor(state.lang).find(e => e.name === $("examples").value);
   $("examples").value = "";
   if (!ex || !confirmDiscard()) return;
   state.params = {}; state.specSig = null; state.keys = {};
@@ -1882,18 +1895,23 @@ function setLang(lang, code = null, silent = false) {
   stopAnimation(false);
   state.lang = lang;
   $("lang").value = lang;
-  document.body.classList.toggle("lang-processing", lang === "processing");
+  document.body.dataset.lang = lang;
   fillExamples();
   if (cm) cm.setOption("mode", lang === "python" ? "python" : "null");
   clearErrorLine();
-  setCode(code ?? state.sources[lang] ?? (lang === "processing" ? PDE_TEMPLATE : (state.examples[0] || {}).source || ""));
+  if (lang !== "p5") { $("p5View").hidden = true; $("p5View").srcdoc = ""; $("svgView").hidden = false; }
+  setCode(code ?? state.sources[lang] ?? (lang === "processing" ? PDE_TEMPLATE : lang === "p5" ? P5_TEMPLATE
+          : (state.examples[0] || {}).source || ""));
   persist();
 }
 $("lang").onchange = () => { setLang($("lang").value); run(0); };
+function examplesFor(lang) {
+  return (lang === "processing" ? state.pdeExamples : lang === "p5" ? state.p5Examples : state.examples) || [];
+}
 function fillExamples() {            // the example list follows the language
   const sel = $("examples");
   while (sel.options.length > 1) sel.remove(1);
-  for (const e of (state.lang === "processing" ? state.pdeExamples : state.examples) || []) sel.add(new Option(e.title, e.name));
+  for (const e of examplesFor(state.lang)) sel.add(new Option(e.title, e.name));
 }
 
 async function runPde() {
@@ -1942,6 +1960,176 @@ $("convertPde").onclick = async () => {
   state.params = {}; state.specSig = null;
   run(0);
   toast(r.warnings.length ? `Übertragen – ${r.warnings.length} Hinweise stehen oben im Code` : "Nach plotart übertragen", 4000);
+};
+
+// ================================================================== other languages: p5.js (runs in a sandboxed iframe)
+const P5_TEMPLATE = `// p5.js-Sketch – läuft direkt im Browser, auch am iPad.
+// plotart.param("Name", Standard, Min, Max) erzeugt einen Regler; in draw() abgefragt wirkt er sofort.
+// Der Seed gilt für random() und noise() – gleicher Seed, gleiches Bild.
+
+function setup() {
+  createCanvas(600, 600);
+}
+
+function draw() {
+  const anzahl = plotart.param("Anzahl", 40, 5, 200);
+  const tempo = plotart.param("Tempo", 1.0, 0.1, 4.0);
+  background(250);
+  noFill();
+  stroke(30, 80, 190, 150);
+  for (let i = 0; i < anzahl; i++) {
+    const t = frameCount * 0.01 * tempo + i * 0.05;
+    const r = 60 + 220 * noise(i * 0.1, t);
+    circle(width / 2, height / 2, r * 2);
+  }
+}
+`;
+const p5state = { specs: [], lastErr: null, recording: false };
+
+// the document inside the iframe: seed, plotart.param(), error/log forwarding, PNG and WebM export
+const P5_RUNTIME = `
+const __post = (m) => parent.postMessage(Object.assign({ plotartP5: true }, m), "*");
+const __specs = []; let __drawing = false, __timer = null, __rec = null;
+function __kind(def, min, step) {
+  if (typeof def === "boolean") return "bool";
+  if (typeof def === "string") return def.startsWith("#") ? "color" : "text";
+  return Number.isInteger(def) && (step == null || Number.isInteger(step)) && (min == null || Number.isInteger(min)) ? "int" : "float";
+}
+window.plotart = {
+  seed: PLOTART.seed,
+  param(name, def, min, max, step) {
+    let spec = __specs.find((s) => s.name === name);
+    if (!spec) {
+      const opts = Array.isArray(min) ? min : null;
+      const kind = opts ? "choice" : __kind(def, min, step);
+      const num = kind === "int" || kind === "float";
+      const lo = min ?? 0, hi = max ?? Math.max(kind === "int" ? 10 : 1, def * 3);
+      spec = { name, label: name, default: def, kind, help: "", live: false,
+               choices: opts ? opts.map((o) => [String(o), String(o)]) : null,
+               min: num ? lo : null, max: num ? hi : null,
+               step: num ? (step ?? (kind === "int" ? 1 : (+((hi - lo) / 200).toFixed(6) || 0.001))) : null };
+      __specs.push(spec);
+    }
+    if (__drawing) spec.live = true;
+    clearTimeout(__timer);
+    __timer = setTimeout(() => __post({ type: "params", specs: __specs }), 60);
+    return name in PLOTART.params ? PLOTART.params[name] : def;
+  },
+};
+window.onerror = (msg, src, line) => { __post({ type: "error", message: String(msg), line: line ? line - PLOTART.line0 : null }); };
+window.addEventListener("unhandledrejection", (e) => __post({ type: "error", message: String(e.reason) }));
+for (const k of ["log", "info", "warn", "error"]) {
+  const orig = console[k];
+  console[k] = (...a) => {
+    __post({ type: "log", level: k, text: a.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(" ") });
+    orig.apply(console, a);
+  };
+}
+addEventListener("message", (e) => {
+  const m = e.data || {}, c = document.querySelector("canvas");
+  if (m.type === "set") PLOTART.params[m.name] = m.value;
+  else if (m.type === "png" && c) __post({ type: "png", url: c.toDataURL("image/png") });
+  else if (m.type === "rec" && c && m.on && !__rec) {
+    const type = ["video/webm;codecs=vp9", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t));
+    const chunks = [];
+    __rec = new MediaRecorder(c.captureStream(m.fps || 30), type ? { mimeType: type, videoBitsPerSecond: 12e6 } : undefined);
+    __rec.ondataavailable = (ev) => ev.data.size && chunks.push(ev.data);
+    __rec.onstop = () => { __post({ type: "video", blob: new Blob(chunks, { type: "video/webm" }) }); __rec = null; };
+    __rec.start(500);
+  } else if (m.type === "rec" && !m.on && __rec) __rec.stop();
+});
+`;
+const P5_HOOKS = `
+p5.prototype.registerMethod("init", function () { this.randomSeed(PLOTART.seed); this.noiseSeed(PLOTART.seed); });
+p5.prototype.registerMethod("pre", function () { __drawing = true; });
+let __framed = false;
+p5.prototype.registerMethod("post", function () {
+  __drawing = false; __framed = true;
+  if (this.frameCount === 1 || this.frameCount % 15 === 0)
+    __post({ type: "frame", frame: this.frameCount, w: this.width, h: this.height, looping: this.isLooping() });
+});
+// sketches without draw() never reach "post": report the canvas once setup() is done
+addEventListener("load", () => setTimeout(() => {
+  if (!__framed && document.querySelector("canvas"))
+    __post({ type: "frame", frame: frameCount, w: width, h: height, looping: isLooping() });
+}, 100));
+`;
+// The library is inlined: a sandboxed iframe has no origin of its own, and browsers block it from
+// loading scripts from localhost ("Private Network Access").
+let P5_LIB = null;
+async function p5Library() {
+  if (P5_LIB === null) {
+    const r = await fetch("vendor/p5.min.js");
+    if (!r.ok) throw new Error("p5.js konnte nicht geladen werden (vendor/p5.min.js)");
+    P5_LIB = (await r.text()).replace(/<\/script/gi, "<\\/script");
+  }
+  return P5_LIB;
+}
+function p5Doc(code, lib) {
+  const close = "</" + "script>";
+  const before = [
+    "<!DOCTYPE html><html><head><meta charset=\"utf-8\">",
+    "<style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}",
+    "canvas{display:block;width:100%!important;height:100%!important}</style>",
+    "<script>const PLOTART = __SETUP__;" + P5_RUNTIME + close,
+    "<script>" + lib + close,
+    "<script>" + P5_HOOKS + close,
+    "</head><body><script>",
+  ].join("\n") + "\n";
+  const line0 = before.split("\n").length - 1;           // lines in front of the user's code
+  const setup = JSON.stringify({ seed: state.seed, params: state.params, line0 });
+  return before.replace("__SETUP__", setup) + code.replace(/<\/script/gi, "<\\/script") + "\n" + close + "</body></html>";
+}
+
+async function runP5() {
+  persist();
+  let lib;
+  try { lib = await p5Library(); }
+  catch (e) { $("console").innerHTML = `<span class="err">${esc(e.message)}</span>`; return; }
+  p5state.lastErr = null;
+  clearErrorLine();
+  stopAnimation(true);
+  $("svgView").hidden = true;
+  $("p5View").hidden = false;
+  fitSheet();                          // the sheet needs a size – a 0×0 iframe gets no animation frames
+  $("console").innerHTML = "";
+  $("p5View").srcdoc = p5Doc(getCode(), lib);
+  $("status").innerHTML = `<span>p5.js</span><span>Seed <b>${state.seed}</b></span>`;
+}
+function p5Post(msg) { const w = $("p5View").contentWindow; if (w) w.postMessage(msg, "*"); }
+
+window.addEventListener("message", (e) => {
+  if (e.source !== $("p5View").contentWindow || !e.data || !e.data.plotartP5) return;
+  const m = e.data;
+  if (m.type === "params") { p5state.specs = m.specs; buildParams(m.specs); }
+  else if (m.type === "log") appendLog(m.text + "\n", m.level === "error" || m.level === "warn" ? "err" : "");
+  else if (m.type === "error") {
+    const key = `${m.line}|${m.message}`;
+    if (key === p5state.lastErr) return;
+    p5state.lastErr = key;
+    appendLog(`${m.line ? "Zeile " + m.line + ": " : ""}${m.message}\n`, "err");
+    markErrorLine(m.line);
+  } else if (m.type === "frame") {
+    if (m.w !== state.width || m.h !== state.height) {
+      Object.assign(state, { width: m.w, height: m.h, unit: "px" });
+      fitSheet();
+    }
+    $("status").innerHTML = `<span>p5.js</span><span>Leinwand <b>${m.w} × ${m.h} px</b></span>` +
+      (m.looping || m.frame > 1 ? `<span>Bild <b>${m.frame}</b>${m.looping ? "" : " (angehalten)"}</span>` : "<span>Standbild</span>") +
+      `<span>Seed <b>${state.seed}</b></span>`;
+  } else if (m.type === "png") {
+    fetch(m.url).then(r => r.blob()).then(b => deliver(b, `${fileStem()}_${state.seed}.png`));
+  } else if (m.type === "video") {
+    deliver(m.blob, `${fileStem()}_${state.seed}.webm`);
+    toast(`Video aufgenommen (${fmtBytes(m.blob.size)})`);
+  }
+});
+$("p5Rec").onclick = () => {
+  if (!window.MediaRecorder) { toast("Dieser Browser kann keine Videos aufnehmen"); return; }
+  p5state.recording = !p5state.recording;
+  $("p5Rec").classList.toggle("rec", p5state.recording);
+  $("p5Rec").textContent = p5state.recording ? "⏹ Aufnahme beenden" : "⏺ Video";
+  p5Post({ type: "rec", on: p5state.recording, fps: 30 });
 };
 
 function pdeFramePng() {
@@ -2111,6 +2299,7 @@ if (DESKTOP) {
     const [ex, ref] = await Promise.all([backend.call("sketch_examples", {}), backend.call("sketch_reference", {})]);
     state.examples = ex.examples;
     state.pdeExamples = ex.pde || [];
+    state.p5Examples = ex.p5 || [];
     state.reference = ref.reference;
   } catch (e) {
     $("loadingMsg").textContent = "Fehler beim Laden: " + e.message;
@@ -2130,7 +2319,7 @@ if (DESKTOP) {
     } catch (e) { state.file = null; }
   }
   state.sources = saved.sources || {};
-  if (saved.lang === "processing") { state.sources.python = src; setLang("processing", null, true); }
+  if (saved.lang === "processing" || saved.lang === "p5") { state.sources.python = src; setLang(saved.lang, null, true); }
   else { setCode(src); fillExamples(); }
   updateFileLabel();
   run(0);

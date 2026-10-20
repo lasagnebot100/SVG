@@ -24,7 +24,7 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Ton & Interaktion:** `load_audio()` mit Pegel, Spektrum, Bass/Mitten/Höhen und Beat-Erkennung, Ton im Video; Maus, Tastatur und MIDI live im Studio, Aufnahme der Eingaben für den Export
 - **3D in der Skizze:** `box()`, `sphere()`, `torus()`, `mesh()`, Kamera, Lichter, `orbit_control()`; Export als **glTF (.glb)/OBJ**, echte 3D-Objekte in Blender, **verdeckte Linien entfernen** für 3D-Plots
 - **TouchDesigner & OSC:** Studio per OSC fernsteuern, `osc()`/`osc_send()` in Skizzen, Skizzen als Live-Textur in einem Script TOP
-- **Processing im Studio:** `.pde`-Sketches mit dem installierten Processing ausführen; Übertragung nach plotart-Python
+- **p5.js und Processing im Studio:** p5.js-Sketches laufen direkt im Browser (Regler, Seed, PNG, Video); `.pde`-Sketches mit dem installierten Processing ausführen oder nach plotart-Python übertragen
 - **Live & VJ:** Live-Coding ohne Neustart (der Zustand bleibt), Takt mit `bpm`/`beat`/`on_beat()` aus Tap-Tempo oder Ableton Link, Ausgabefenster für den Beamer, Video live per NDI oder Spout an OBS, Resolume und TouchDesigner
 - **Algorithmic-Art-Workflow:** Konzept als Docstring, Seed-Navigation ◀ ▶, jede Skizze als **eigenständige Web-Seite** teilen
 - **p5.js/py5-kompatibel:** camelCase-Namen (`noFill()`, `strokeWeight()`, `createCanvas(…, WEBGL)`, `frameCount` …), shapely-Geometrie und Schraffur eingebaut
@@ -381,9 +381,21 @@ pip install -e ".[spout]"     # Spout – SpoutGL gibt es bisher für Python 3.1
 
 - **Beispiele:** 60 (Visuals im Takt), 61 (Live-Coding: der Zustand bleibt).
 
-## Processing im Studio
+## Andere Sprachen im Studio: p5.js und Processing
 
-Über die Sprachwahl oben im Studio (**Python (plotart)** / **Processing (Java)**) lassen sich Processing-Sketches schreiben, öffnen (`.pde`) und speichern. Beide Sprachen behalten ihren eigenen Code.
+Über die Sprachwahl oben im Studio (**Python (plotart)**, **Processing (Java)**, **p5.js (JavaScript)**) lassen sich Sketches in der jeweiligen Sprache schreiben, öffnen (`.pde`, `.js`) und speichern. Jede Sprache behält ihren eigenen Code; unter „Beispiele …“ stehen passende Beispiele.
+
+### p5.js
+
+- **Läuft direkt im Browser**, auch am iPad und in der Browser-Version – ohne Server. p5.js 1.11 ist mitgeliefert, es braucht kein Internet.
+- **Abgeschirmt:** Der Sketch läuft in einem eigenen Rahmen (`sandbox`), ohne Zugriff auf das Studio.
+- **Regler:** `plotart.param("Anzahl", 40, 5, 200)` erzeugt einen Regler (auch Farben `"#1f5fbf"`, Schalter `true`, Auswahl `["a", "b"]`).
+  - In `draw()` abgefragt, wirkt er sofort, ohne Neustart; in `setup()` abgefragt, startet der Sketch neu.
+- **Seed:** gilt für `random()` und `noise()` – derselbe Seed ergibt dasselbe Bild; ◀ ▶ blättert durch die Varianten.
+- **Fehler** erscheinen mit Zeilennummer, `console.log()` in der Konsole.
+- **Export:** PNG des aktuellen Bildes; **⏺ Video** nimmt eine WebM-Datei auf.
+
+### Processing
 
 - **▶ Ausführen** startet den Sketch mit dem installierten Processing (ab Version 4.4; ältere über `processing-java`).
   - Die Bilder kommen ins Studio, Animationen laufen im gewohnten Player; das Feld neben ▶ legt die Anzahl der Bilder fest.
@@ -688,7 +700,7 @@ plotart/
 │   ├── edition.py     Merkmale, Seltenheiten, Metadaten, Galerie · tiles.py: Großformat auf mehreren Blättern
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
-├── languages/         Processing: Ausführen (processing.py), Übertragung nach plotart (pde_convert.py), Beispiele
+├── languages/         Processing: Ausführen (processing.py), Übertragung nach plotart (pde_convert.py); Beispiele (.pde, .js)
 ├── tempo.py           Ableton Link für den Live-Modus
 ├── videoout.py        Video live an andere Programme (NDI, Spout)
 ├── viewer.py          Skizze als eigenständige Web-Seite

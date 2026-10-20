@@ -28,7 +28,8 @@ Vorher: 118 Tests unter Windows 11 und Python 3.14, davon 3 Fehlschläge und 1 F
 
 Gemeinsam für alle Sprachen: Seed, Regler (`param`), Varianten, Favoriten, Export (PNG/SVG/Video) und Web-Seite bleiben gleich.
 
-- ⬜ **p5.js / JavaScript-Modus:** Skizzen in p5.js schreiben; sie laufen direkt im Browser, auch am iPad.
+- ✅ **p5.js / JavaScript-Modus** – Version 1.15.0: läuft im abgeschirmten Rahmen, auch am iPad; `plotart.param()`, Seed, PNG, WebM; p5.js 1.11.13 mitgeliefert
+  - ⬜ JavaScript-Farbhervorhebung, Ausgabefenster und Web-Seiten-Export für p5-Sketches
 - ✅ **Processing (Java, `.pde`)** – Version 1.14.0, `plotart/languages/`:
   - ✅ Sketches mit dem installierten Processing ausführen (`Processing cli`, sonst `processing-java`), Seed, Fehler mit Zeile
   - ✅ Bilder und Animationen ins Studio holen (Sprachwahl, Player, PNG)

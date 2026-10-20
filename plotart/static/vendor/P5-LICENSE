@@ -1,0 +1,10 @@
+p5.js 1.11.13 – https://p5js.org
+Copyright (c) the Processing Foundation and p5.js contributors.
+
+p5.min.js is unmodified, as published on cdnjs:
+https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.13/p5.min.js
+Source code: https://github.com/processing/p5.js/tree/v1.11.13
+
+p5.js is free software, licensed under the GNU Lesser General Public License,
+version 2.1: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+plotart only loads it unchanged; it can be replaced by any other p5.js 1.x build.

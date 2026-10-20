@@ -133,6 +133,30 @@ class ConvertTests(unittest.TestCase):
             self.assertEqual(run("pde", str(pde)), 1)                 # never overwrites
 
 
+class P5Tests(unittest.TestCase):
+    def test_examples_and_library(self):
+        from plotart import web
+        ex = bridge.dispatch("sketch_examples", {})["p5"]
+        self.assertEqual([e["name"] for e in ex], ["p5_01_stroemung", "p5_02_kacheln"])
+        self.assertTrue(all(e["title"].startswith("p5.js:") and "plotart.param(" in e["source"] for e in ex))
+        static = Path(web.__file__).resolve().parent / "static"
+        self.assertEqual(web.FILES["/vendor/p5.min.js"][0], "vendor/p5.min.js")
+        lib = (static / "vendor" / "p5.min.js").read_text(encoding="utf-8")
+        self.assertTrue(lib.startswith("/*! p5.js v1.11"))
+        self.assertNotIn("</script", lib)                              # it is inlined into the sandboxed iframe
+        self.assertIn("Lesser General Public License", (static / "vendor" / "P5-LICENSE").read_text(encoding="utf-8"))
+        studio = (static / "studio.html").read_text(encoding="utf-8")
+        self.assertIn('sandbox="allow-scripts"', studio)
+        self.assertNotIn("allow-same-origin", studio)
+
+    def test_web_build_has_p5(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+        import build_web
+        files = build_web.python_files()
+        self.assertIn("plotart/languages/examples/p5_01_stroemung.js", files)
+        self.assertIn("plotart/languages/examples/p01_baelle.pde", files)
+
+
 class RunTests(unittest.TestCase):
     def test_prepare_and_has_draw(self):
         with tempfile.TemporaryDirectory() as tmp:

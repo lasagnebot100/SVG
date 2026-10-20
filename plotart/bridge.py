@@ -102,9 +102,9 @@ def sketch_thumb(req: dict) -> dict:
 
 
 def sketch_examples(req: dict) -> dict:
-    from .languages.processing import list_pde_examples
+    from .languages import list_examples as language_examples
     from .sketch import list_examples
-    return {"examples": list_examples(), "pde": list_pde_examples()}
+    return {"examples": list_examples(), "pde": language_examples(".pde"), "p5": language_examples(".js")}
 
 
 def sketch_reference(req: dict) -> dict:

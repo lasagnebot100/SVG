@@ -199,18 +199,10 @@ def _png_size(data: bytes) -> tuple[int, int]:
     return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
 
 
-EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
-
-
 def list_pde_examples() -> list[dict]:
-    """The bundled Processing examples: {"name", "title", "source"}; title = first comment line."""
-    out = []
-    for path in sorted(EXAMPLES_DIR.glob("*.pde")):
-        src = path.read_text(encoding="utf-8")
-        first = src.lstrip().splitlines()[0] if src.strip() else ""
-        title = first[2:].strip() if first.startswith("//") else path.stem
-        out.append({"name": path.stem, "title": title, "source": src})
-    return out
+    """The bundled Processing examples: {"name", "title", "source"}."""
+    from . import list_examples
+    return list_examples(".pde")
 
 
 def frames_as_svg(pngs: list[bytes]) -> list[str]:
