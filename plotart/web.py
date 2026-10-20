@@ -221,7 +221,16 @@ class Handler(BaseHTTPRequestHandler):
             return {"error": str(exc)}
 
     def _desktop_command(self, cmd: str, req: dict):
-        """Commands that only exist in the desktop server (files, export jobs)."""
+        """Commands that only exist in the desktop server (files, export jobs, Processing)."""
+        if cmd == "pde_run":
+            from .languages.processing import ProcessingError, frames_as_svg, run_pde
+            try:
+                r = run_pde(req.get("source", ""), req.get("frames"), int(req.get("seed") or 1))
+            except ProcessingError as exc:
+                return {"error": str(exc)}
+            return {"frames": [{"svg": s, "clears": True} for s in frames_as_svg(r["frames"])],
+                    "width": r["width"], "height": r["height"], "fps": 30, "log": r["log"], "ms": r["ms"],
+                    "sketch_error": r["error"]}
         if cmd == "sketch_files":
             return {"dir": str(self.sketches.dir), "files": self.sketches.list()}
         if cmd == "sketch_file_load":

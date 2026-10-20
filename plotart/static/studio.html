@@ -175,6 +175,8 @@
   .traits .bar i { display: block; height: 100%; background: var(--accent); }
   .traits .pct { text-align: right; color: var(--muted); }
   #rarityCount { font-size: 11px; padding: 2px 3px; }
+  body:not(.lang-processing) .pde-only, body.lang-processing .py-only { display: none !important; }
+  #pdeFrames { width: 64px; }
   #tlBpm { width: 66px; padding: 3px 4px; font-size: 12px; }
   .beatdot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: none; }
   .beatdot.hit { background: var(--accent); }
@@ -192,26 +194,30 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
   <select id="files" class="desktop-only" title="Skizzen im Ordner (Strg/⌘ + O)"><option value="">📁 Meine Skizzen …</option></select>
   <span class="filename desktop-only" id="fileName" title="Aktuelle Datei"></span>
   <select id="examples" title="Beispiel-Skizze laden"><option value="">Beispiele …</option></select>
+  <select id="lang" title="Sprache des Sketches: plotart-Python oder Processing (Java)">
+    <option value="python">Python (plotart)</option><option value="processing">Processing (Java)</option></select>
   <span class="sep"></span>
   <button class="btn primary" id="run" title="Ausführen (Strg/⌘ + Enter)">▶ Ausführen</button>
-  <button class="btn" id="live" title="Bei jeder Änderung automatisch ausführen">Live</button>
+  <button class="btn py-only" id="live" title="Bei jeder Änderung automatisch ausführen">Live</button>
+  <input type="number" id="pdeFrames" class="pde-only" min="1" max="600" value="120" title="Bilder bei Sketches mit draw()">
+  <button class="btn pde-only" id="convertPde" title="Den Processing-Sketch nach plotart-Python übertragen">⇄ nach plotart</button>
   <span class="sep"></span>
   <button class="btn" id="seedPrev" title="Vorheriger Seed (Alt + ←)">◀</button>
   <input type="number" id="seed" min="1" step="1" title="Seed – gleicher Seed = gleiches Bild">
   <button class="btn" id="seedNext" title="Nächster Seed (Alt + →)">▶</button>
   <button class="btn" id="dice" title="Neuer Seed (Strg/⌘ + Umschalt + Enter)">🎲</button>
-  <button class="btn" id="variants" title="Varianten-Raster: viele Seeds auf einen Blick (V)">🔲 Varianten</button>
-  <button class="btn" id="favBtn" title="Aktuelle Variante als Favorit merken (F)">★</button>
+  <button class="btn py-only" id="variants" title="Varianten-Raster: viele Seeds auf einen Blick (V)">🔲 Varianten</button>
+  <button class="btn py-only" id="favBtn" title="Aktuelle Variante als Favorit merken (F)">★</button>
   <select id="history" class="desktop-only" title="Frühere gespeicherte Fassungen" hidden><option value="">🕘 Verlauf</option></select>
   <span class="grow"></span>
-  <button class="btn" id="expSvg" title="Farb-SVG herunterladen (bei Animationen: aktuelles Bild)">SVG</button>
+  <button class="btn py-only" id="expSvg" title="Farb-SVG herunterladen (bei Animationen: aktuelles Bild)">SVG</button>
   <button class="btn" id="expPng" title="PNG in der eingestellten Auflösung">PNG</button>
-  <button class="btn" id="expPlot" title="Nur Linien, optimiert, eine Ebene pro Farbe">Plotter</button>
+  <button class="btn py-only" id="expPlot" title="Nur Linien, optimiert, eine Ebene pro Farbe">Plotter</button>
   <button class="btn" id="exp3d" title="3D-Formen als glTF (.glb) für Blender, TouchDesigner, three.js – Umschalt: OBJ" hidden>3D</button>
   <span class="sep"></span>
   <button class="btn" id="savePy" title="Speichern (Strg/⌘ + S) – Umschalt: Speichern unter">💾</button>
   <button class="btn web-only" id="openPy" title="Skizze (.py) öffnen">📂</button>
-  <input type="file" id="fileIn" accept=".py,text/x-python,text/plain" hidden>
+  <input type="file" id="fileIn" accept=".py,.pde,text/x-python,text/plain" hidden>
   <button class="btn" id="help" title="Alle Funktionen (F1)">? Hilfe</button>
   <a class="btn" href="generatoren.html" title="Fertige Generatoren mit Reglern">Generatoren</a>
 </header>
@@ -234,8 +240,8 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
         <option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
       <button class="btn" id="tlMute" title="Ton an/aus (der erste mit load_audio() geladene Ton)" hidden>🔊</button>
       <span class="sep"></span>
-      <button class="btn" id="tlLive" title="Interaktiv: Maus, Tastatur und MIDI steuern die Skizze live (I)">🎮 Interaktiv</button>
-      <button class="btn" id="tlRec" title="Eingaben aufnehmen – die Aufnahme wird in Vorschau und Video-Export abgespielt">⏺</button>
+      <button class="btn py-only" id="tlLive" title="Interaktiv: Maus, Tastatur und MIDI steuern die Skizze live (I)">🎮 Interaktiv</button>
+      <button class="btn py-only" id="tlRec" title="Eingaben aufnehmen – die Aufnahme wird in Vorschau und Video-Export abgespielt">⏺</button>
       <button class="btn" id="tlRecInfo" title="Aufnahme verwerfen" hidden></button>
       <button class="btn" id="tlOut" title="Ausgabefenster für Beamer oder zweiten Bildschirm (dort Vollbild mit F oder Doppelklick)">📺 Ausgabe</button>
     </div>
@@ -277,7 +283,7 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
     <div class="favs" id="favs"></div>
     <p class="empty" id="favEmpty">Mit ★ merkst du dir Seed und Regler einer Variante.</p>
 
-    <div id="vidSection" hidden>
+    <div id="vidSection" class="py-only" hidden>
       <h2>Animation exportieren</h2>
       <div class="vidbox desktop-only">
         <div class="field"><label>Format</label><select id="vidFormat"></select></div>
@@ -298,7 +304,7 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
       <p class="empty web-only">Video-, GIF- und PNG-Sequenz-Export gibt es in der Desktop-Version: <code>python3 -m plotart</code></p>
     </div>
 
-    <div class="desktop-only">
+    <div class="desktop-only py-only">
       <h2>Serie exportieren</h2>
       <div class="vidbox">
         <div class="row2">
@@ -341,7 +347,7 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
         <code>"beispiel:portrait"</code>, <code>"beispiel:temperaturen.csv"</code>.</p>
     </div>
 
-    <div class="desktop-only">
+    <div class="desktop-only py-only">
       <h2>Blender</h2>
       <div class="vidbox">
         <div class="row2">
@@ -372,7 +378,7 @@ body.midi-learn .field[data-param]{outline:1px dashed #b07a00;outline-offset:2px
       <input type="number" id="penWidth" min="0.05" max="3" step="0.05" value="0.45"></div>
     <label class="check" title="Linien, die von später gezeichneten Flächen verdeckt sind, werden nicht geplottet (3D, überlappende Formen)">
       <input type="checkbox" id="hiddenLines"> Verdeckte Linien entfernen</label>
-    <button class="btn" id="expHtml" style="width:100%;justify-content:center;margin-bottom:8px"
+    <button class="btn py-only" id="expHtml" style="width:100%;justify-content:center;margin-bottom:8px"
       title="Eigenständige Web-Seite mit Seed-Navigation und Reglern – zum Teilen (Python läuft im Browser)">🌐 Als Web-Seite teilen</button>
     <h2 class="desktop-only">Ordner</h2>
     <p class="empty desktop-only" id="folders"></p>
@@ -423,13 +429,16 @@ document.body.classList.toggle("standalone", !DESKTOP);
 const STORE = "plotart-studio-v1";
 const state = { seed: 1, params: {}, specs: [], live: true, svg: "", width: 800, height: 800, unit: "px",
                 req: 0, reference: [], examples: [], errorLine: null, animated: false,
-                file: null, fileMtime: 0, savedSource: null, keys: {}, favorites: [] };
+                file: null, fileMtime: 0, savedSource: null, keys: {}, favorites: [],
+                lang: "python", sources: {} };      // lang: "python" | "processing"; sources: code per language
 
 function load() { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } }
 function persist() {
   try {
-    localStorage.setItem(STORE, JSON.stringify({ source: getCode(), seed: state.seed, params: state.params,
-      live: state.live, file: state.file, keys: state.keys }));
+    state.sources[state.lang] = getCode();
+    localStorage.setItem(STORE, JSON.stringify({ source: state.sources.python ?? getCode(), seed: state.seed,
+      params: state.params, live: state.live, file: state.file, keys: state.keys,
+      lang: state.lang, sources: state.sources }));
   } catch (e) {}
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -536,6 +545,7 @@ function paramsWithKeys(params = state.params) {
 function sketchPayload() { return { source: getCode(), params: paramsWithKeys(), seed: state.seed }; }
 
 async function runNow() {
+  if (state.lang === "processing") return runPde();
   const id = ++state.req;
   $("seed").value = state.seed;
   setBusy(true);
@@ -632,9 +642,11 @@ function sizeCanvas(w, h) {
   }
 }
 
-function startAnimation(res) {
+function startAnimation(res, readyFrames = null) {
+  // readyFrames: all frames at once (Processing) instead of fetching them from the sketch step by step
   const gen = ++anim.gen;
-  Object.assign(anim, { frames: [], next: 0, total: res.frames, fps: res.fps, done: false, cur: -1, bytes: 0,
+  Object.assign(anim, { frames: readyFrames || [], next: readyFrames ? readyFrames.length : 0, total: res.frames,
+                        fps: res.fps || 30, done: !!readyFrames, foreign: !!readyFrames, cur: -1, bytes: 0,
                         seekTo: null, acc: 0 });
   anim.checkpoints.clear();
   $("svgView").hidden = true; $("animView").hidden = false;
@@ -642,10 +654,11 @@ function startAnimation(res) {
   document.querySelectorAll(".keybtn").forEach(b => b.hidden = false);
   $("vidSection").hidden = false;
   $("tlScrub").max = res.frames - 1;
-  $("vidFrames").value = res.frames; $("vidFps").value = Math.round(res.fps);
+  $("vidFrames").value = res.frames; $("vidFps").value = Math.round(anim.fps);
   updateVidLength(); updateVidScales();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   updateTimeline();
+  if (readyFrames) { showFrame(0); return; }
   fetchFrames(gen);
 }
 
@@ -661,6 +674,7 @@ function stopAnimation(hide) {
 }
 
 async function fetchFrames(gen) {
+  if (anim.foreign) return;                      // Processing: all frames are already there
   const payload = sketchPayload();
   while (gen === anim.gen && !anim.done) {
     // keep a healthy buffer ahead of the playhead, but don't run away with memory
@@ -913,6 +927,11 @@ $("expPng").onclick = () => {
     return;
   }
   if (!state.svg) return;
+  if (state.lang === "processing") {             // Processing renders the PNG itself
+    const png = pdeFramePng();
+    if (png) deliver(new Blob([png], { type: "image/png" }), `${fileStem()}_${state.seed}.png`);
+    return;
+  }
   const s = parseFloat($("pngScale").value) || 1;
   const w = Math.round(state.width * s), h = Math.round(state.height * s);
   if (w * h > 16384 * 16384 / 2) { toast("Zu groß für den Browser – kleinere Auflösung wählen"); return; }
@@ -1479,6 +1498,10 @@ async function openFile(name) {
 }
 
 async function save(saveAs) {
+  if (state.lang === "processing") {             // .pde: download (the sketch folder holds plotart sketches)
+    deliver(new Blob([getCode()], { type: "text/plain" }), fileStem() + ".pde");
+    return;
+  }
   if (!DESKTOP) {
     deliver(new Blob([getCode()], { type: "text/x-python" }), fileStem() + ".py");
     return;
@@ -1541,7 +1564,9 @@ $("savePy").onclick = (e) => save(e.shiftKey);
 $("openPy").onclick = () => $("fileIn").click();
 $("fileIn").onchange = async () => {
   const f = $("fileIn").files[0]; if (!f) return;
-  setCode(await f.text()); $("fileIn").value = ""; state.params = {}; state.specSig = null; run(0);
+  const text = await f.text();
+  setLang(f.name.toLowerCase().endsWith(".pde") ? "processing" : "python", text);
+  $("fileIn").value = ""; state.params = {}; state.specSig = null; run(0);
 };
 window.addEventListener("beforeunload", (e) => { if (DESKTOP && isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
@@ -1575,7 +1600,7 @@ $("shuffleParams").onclick = () => {
   state.specSig = null; run(0);
 };
 $("examples").onchange = () => {
-  const ex = state.examples.find(e => e.name === $("examples").value);
+  const ex = (state.lang === "processing" ? state.pdeExamples : state.examples).find(e => e.name === $("examples").value);
   $("examples").value = "";
   if (!ex || !confirmDiscard()) return;
   state.params = {}; state.specSig = null; state.keys = {};
@@ -1587,15 +1612,16 @@ document.addEventListener("keydown", (e) => {
   const inEditor = cm ? cm.hasFocus() : document.activeElement === $("code");
   const typing = inEditor || ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName);
   if (live.on && document.activeElement === canvas && !mod) return;     // keys go to the sketch
-  if (!typing && !mod && e.key.toLowerCase() === "i" && state.animated) { e.preventDefault(); $("tlLive").click(); return; }
+  const py = state.lang === "python";              // these shortcuts belong to plotart sketches
+  if (!typing && !mod && e.key.toLowerCase() === "i" && state.animated && py) { e.preventDefault(); $("tlLive").click(); return; }
   if (!typing && !mod && e.key.toLowerCase() === "t" && live.on && tempo.clock !== "link") { e.preventDefault(); tap(); return; }
   if (mod && e.key === "Enter") { e.preventDefault(); e.shiftKey ? newSeed() : run(0); }
   else if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(e.shiftKey); }
   else if (mod && e.key.toLowerCase() === "o" && DESKTOP) { e.preventDefault(); $("files").focus(); $("files").showPicker?.(); }
   else if (e.key === "F1") { e.preventDefault(); $("help").click(); }
   else if (e.key === "Escape") { $("drawer").classList.remove("on"); if ($("vOverlay").classList.contains("on")) $("vClose").click(); }
-  else if (!typing && e.key.toLowerCase() === "v" && !mod) { e.preventDefault(); $("variants").click(); }
-  else if (!typing && e.key.toLowerCase() === "f" && !mod) { e.preventDefault(); saveFavorite(null); }
+  else if (!typing && e.key.toLowerCase() === "v" && !mod && py) { e.preventDefault(); $("variants").click(); }
+  else if (!typing && e.key.toLowerCase() === "f" && !mod && py) { e.preventDefault(); saveFavorite(null); }
   else if (!typing && state.animated) {
     if (e.code === "Space") { e.preventDefault(); setPlaying(!anim.playing); }
     else if (e.key === "ArrowRight") { e.preventDefault(); $("tlStep").click(); }
@@ -1827,6 +1853,104 @@ $("serStart").onclick = async () => {
   } else { $("serResult").className = "vidmsg err"; $("serResult").textContent = st.error || "Fehlgeschlagen"; }
 };
 
+// ================================================================== other languages: Processing (.pde)
+const PDE_TEMPLATE = `// Processing-Sketch (Java)
+// ▶ Ausführen startet ihn mit deinem installierten Processing – die Bilder kommen hierher.
+// ⇄ nach plotart überträgt ihn in plotart-Python (einfache Sketches gehen fast immer).
+float winkel = 0;
+
+void setup() {
+  size(600, 600);
+}
+
+void draw() {
+  background(250);
+  translate(width / 2, height / 2);
+  noFill();
+  for (int i = 0; i < 24; i++) {
+    stroke(30, 80, 190, 160);
+    rotate(TWO_PI / 24);
+    ellipse(120 + 60 * sin(winkel + i * 0.3), 0, 160, 60);
+  }
+  winkel += 0.05;
+}
+`;
+function setLang(lang, code = null, silent = false) {
+  if (!silent && lang === state.lang && code === null) return;
+  if (!silent) state.sources[state.lang] = getCode();
+  if (live.on) stopLive(true);
+  stopAnimation(false);
+  state.lang = lang;
+  $("lang").value = lang;
+  document.body.classList.toggle("lang-processing", lang === "processing");
+  fillExamples();
+  if (cm) cm.setOption("mode", lang === "python" ? "python" : "null");
+  clearErrorLine();
+  setCode(code ?? state.sources[lang] ?? (lang === "processing" ? PDE_TEMPLATE : (state.examples[0] || {}).source || ""));
+  persist();
+}
+$("lang").onchange = () => { setLang($("lang").value); run(0); };
+function fillExamples() {            // the example list follows the language
+  const sel = $("examples");
+  while (sel.options.length > 1) sel.remove(1);
+  for (const e of (state.lang === "processing" ? state.pdeExamples : state.examples) || []) sel.add(new Option(e.title, e.name));
+}
+
+async function runPde() {
+  if (!DESKTOP) {
+    $("console").innerHTML = '<span class="err">Processing-Sketches laufen nur in der Desktop-Version (python -m plotart). ' +
+      "„⇄ nach plotart“ funktioniert auch hier.</span>";
+    return;
+  }
+  const id = ++state.req;
+  setBusy(true, "Processing startet …");
+  persist();
+  try {
+    const r = await backend.call("pde_run", { source: getCode(), seed: state.seed,
+                                              frames: parseInt($("pdeFrames").value, 10) || null });
+    if (id !== state.req) return;
+    $("console").innerHTML = r.log ? `<span>${esc(r.log)}</span>\n` : "";
+    if (r.sketch_error) {
+      const e = r.sketch_error;
+      appendLog(`${e.line ? "Zeile " + e.line + ": " : ""}${e.message}\n`, "err");
+      markErrorLine(e.line);
+      return;
+    }
+    buildParams([]); showFeatures({});
+    Object.assign(state, { svg: r.frames[0].svg, width: r.width, height: r.height, unit: "px",
+                           animated: r.frames.length > 1 });
+    $("sheet").classList.remove("stale");
+    if (state.animated) startAnimation({ frames: r.frames.length, fps: r.fps }, r.frames);
+    else { stopAnimation(true); $("svgView").innerHTML = r.frames[0].svg; toOutput({ type: "still", svg: r.frames[0].svg }); }
+    fitSheet();
+    $("status").innerHTML = `<span>Processing</span><span>Leinwand <b>${r.width} × ${r.height} px</b></span>` +
+      `<span>Bilder <b>${r.frames.length}</b></span><span>Zeit <b>${fmtNum(r.ms / 1000)} s</b></span><span>Seed <b>${state.seed}</b></span>`;
+    appendLog(`✓ Processing: ${r.frames.length} ${r.frames.length === 1 ? "Bild" : "Bilder"} in ${fmtNum(r.ms / 1000)} s\n`, "muted");
+  } catch (e) {
+    if (id === state.req) $("console").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  } finally {
+    if (id === state.req) setBusy(false);
+  }
+}
+
+$("convertPde").onclick = async () => {
+  let r;
+  try { r = await backend.call("pde_convert", { source: getCode(), title: "" }); }   // title: first comment line
+  catch (e) { toast("Übertragung fehlgeschlagen: " + e.message); return; }
+  state.sources.processing = getCode();
+  setLang("python", r.source);
+  state.params = {}; state.specSig = null;
+  run(0);
+  toast(r.warnings.length ? `Übertragen – ${r.warnings.length} Hinweise stehen oben im Code` : "Nach plotart übertragen", 4000);
+};
+
+function pdeFramePng() {
+  const i = Math.max(0, anim.cur);
+  const svg = state.animated && anim.frames[i] ? anim.frames[i].svg : state.svg;
+  const m = /base64,([A-Za-z0-9+\/=]+)/.exec(svg || "");
+  return m ? Uint8Array.from(atob(m[1]), c => c.charCodeAt(0)) : null;
+}
+
 // ================================================================== large-format print (tiles)
 function updateTileInfo() {
   const w = parseFloat($("tileWidth").value);
@@ -1986,6 +2110,7 @@ if (DESKTOP) {
   try {
     const [ex, ref] = await Promise.all([backend.call("sketch_examples", {}), backend.call("sketch_reference", {})]);
     state.examples = ex.examples;
+    state.pdeExamples = ex.pde || [];
     state.reference = ref.reference;
   } catch (e) {
     $("loadingMsg").textContent = "Fehler beim Laden: " + e.message;
@@ -1993,7 +2118,6 @@ if (DESKTOP) {
     return;
   }
   $("loading").classList.remove("on");
-  for (const e of state.examples) $("examples").add(new Option(e.title, e.name));
   buildReference();
   if (DESKTOP) { refreshFiles(); loadCapabilities(); loadBlenderStatus(); connectEvents(); }
   let src = saved.source && saved.source.trim() ? saved.source : (state.examples[0] || { source: "" }).source;
@@ -2005,7 +2129,9 @@ if (DESKTOP) {
       if (!saved.source || !saved.source.trim()) src = r.source;
     } catch (e) { state.file = null; }
   }
-  setCode(src);
+  state.sources = saved.sources || {};
+  if (saved.lang === "processing") { state.sources.python = src; setLang("processing", null, true); }
+  else { setCode(src); fillExamples(); }
   updateFileLabel();
   run(0);
   loadFavorites();

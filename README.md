@@ -24,6 +24,7 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Ton & Interaktion:** `load_audio()` mit Pegel, Spektrum, Bass/Mitten/Höhen und Beat-Erkennung, Ton im Video; Maus, Tastatur und MIDI live im Studio, Aufnahme der Eingaben für den Export
 - **3D in der Skizze:** `box()`, `sphere()`, `torus()`, `mesh()`, Kamera, Lichter, `orbit_control()`; Export als **glTF (.glb)/OBJ**, echte 3D-Objekte in Blender, **verdeckte Linien entfernen** für 3D-Plots
 - **TouchDesigner & OSC:** Studio per OSC fernsteuern, `osc()`/`osc_send()` in Skizzen, Skizzen als Live-Textur in einem Script TOP
+- **Processing im Studio:** `.pde`-Sketches mit dem installierten Processing ausführen; Übertragung nach plotart-Python
 - **Live & VJ:** Live-Coding ohne Neustart (der Zustand bleibt), Takt mit `bpm`/`beat`/`on_beat()` aus Tap-Tempo oder Ableton Link, Ausgabefenster für den Beamer, Video live per NDI oder Spout an OBS, Resolume und TouchDesigner
 - **Algorithmic-Art-Workflow:** Konzept als Docstring, Seed-Navigation ◀ ▶, jede Skizze als **eigenständige Web-Seite** teilen
 - **p5.js/py5-kompatibel:** camelCase-Namen (`noFill()`, `strokeWeight()`, `createCanvas(…, WEBGL)`, `frameCount` …), shapely-Geometrie und Schraffur eingebaut
@@ -380,6 +381,26 @@ pip install -e ".[spout]"     # Spout – SpoutGL gibt es bisher für Python 3.1
 
 - **Beispiele:** 60 (Visuals im Takt), 61 (Live-Coding: der Zustand bleibt).
 
+## Processing im Studio
+
+Über die Sprachwahl oben im Studio (**Python (plotart)** / **Processing (Java)**) lassen sich Processing-Sketches schreiben, öffnen (`.pde`) und speichern. Beide Sprachen behalten ihren eigenen Code.
+
+- **▶ Ausführen** startet den Sketch mit dem installierten Processing (ab Version 4.4; ältere über `processing-java`).
+  - Die Bilder kommen ins Studio, Animationen laufen im gewohnten Player; das Feld neben ▶ legt die Anzahl der Bilder fest.
+  - Der Seed gilt auch hier: `random()` und `noise()` liefern beim selben Seed dieselben Bilder.
+  - Fehler erscheinen mit Zeilennummer; ein abgestürzter Sketch hinterlässt kein offenes Fenster.
+  - Processing wird automatisch gefunden (auch ohne PATH) oder über die Umgebungsvariable `PLOTART_PROCESSING`.
+- **⇄ nach plotart** überträgt den Sketch nach plotart-Python, auch in der Browser-Version:
+  - Typen, Schleifen, Arrays, `ArrayList`, `PVector`, Klassen (Felder werden zu `self.…`), Casts, `?:`, Ereignis-Funktionen (`mousePressed()` → `mouse_pressed()`),
+  - Ganzzahl-Division wie in Java (`k / 2` → `k // 2`), `global` wo nötig,
+  - was sich nicht sicher übertragen lässt, steht als Hinweis oben im Code.
+- **Beispiele:** zwei Processing-Sketches unter „Beispiele …“, sobald Processing gewählt ist.
+
+```bash
+python3 -m plotart pde mein_sketch.pde          # → mein_sketch.py (plotart)
+python3 -m plotart pde mein_sketch.pde --run    # mit Processing ausführen, Bilder nach output/
+```
+
 ## Algorithmische Kunst: vom Konzept zum Werk
 
 1. **Konzept:** Der Docstring der Skizze ist ihr Konzept. Die erste Zeile ist der Titel, der Rest die Philosophie. Das Studio zeigt beides im Feld **Konzept**.
@@ -667,6 +688,7 @@ plotart/
 │   ├── edition.py     Merkmale, Seltenheiten, Metadaten, Galerie · tiles.py: Großformat auf mehreren Blättern
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
+├── languages/         Processing: Ausführen (processing.py), Übertragung nach plotart (pde_convert.py), Beispiele
 ├── tempo.py           Ableton Link für den Live-Modus
 ├── videoout.py        Video live an andere Programme (NDI, Spout)
 ├── viewer.py          Skizze als eigenständige Web-Seite

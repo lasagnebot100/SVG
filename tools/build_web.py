@@ -136,7 +136,7 @@ window.PLOTART_BACKEND = (() => {
 
 def python_files() -> dict[str, str]:
     files = {}
-    for path in sorted(PKG.rglob("*.py")):
+    for path in sorted([*PKG.rglob("*.py"), *PKG.glob("languages/examples/*.pde")]):
         if "__pycache__" in path.parts:
             continue
         files[path.relative_to(ROOT).as_posix()] = path.read_text(encoding="utf-8")

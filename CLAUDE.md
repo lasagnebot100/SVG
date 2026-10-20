@@ -5,7 +5,7 @@ plotart ist ein Werkzeug für **generative und algorithmische Kunst** in Python.
 - Export als PNG, SVG, Video, 3D, Blender und Web-Seite,
 - Plotter-Export als Zusatz-Feature.
 
-Version 1.13.0. Die To-do-Liste steht in **`docs/ROADMAP.md`**, die Funktionsübersicht in **`README.md`**.
+Version 1.14.0. Die To-do-Liste steht in **`docs/ROADMAP.md`**, die Funktionsübersicht in **`README.md`**.
 
 ## Vorgaben des Nutzers (immer einhalten)
 
@@ -66,6 +66,7 @@ python tools/build_web.py --out site        # Browser-Version (Pyodide)
   - Live-Coding: `Animation.hot_swap()` in `animation.py`, angestoßen von `anim_live` mit `hot: true`
   - `plotart/sketch/edition.py`: Merkmale, Seltenheiten, Metadaten, `galerie.html`; `plotart/sketch/tiles.py`: Großformat
   - `plotart/viewer.py`: Web-Seiten-Export
+  - `plotart/languages/`: Processing ausführen (`processing.py`, Befehl `pde_run` im Server) und nach plotart übertragen (`pde_convert.py`, Befehl `pde_convert`); Studio-Sprachwahl `state.lang`
 
 ## Regeln im Code
 
@@ -88,9 +89,10 @@ python tools/build_web.py --out site        # Browser-Version (Pyodide)
   1. ✅ II – Mathe-Kunst (1.11.0)
   2. ✅ E – Live/VJ (1.12.0): Live-Coding ohne Neustart, Takt (Tap, Ableton Link), Ausgabefenster, NDI/Spout
   3. ✅ D – Editionen (1.13.0): feature(), Seltenheiten, Metadaten, Galerie-Seite, Großformat in Kacheln
-  4. I – Mehrsprachen-Studio: p5.js, Processing (Konverter und Ausführung), React-Vorlagen, dann R und Kotlin
+  4. I – Mehrsprachen-Studio: ✅ Processing (1.14.0); offen: p5.js, R, React, Kotlin – dafür stehen Entscheidungen aus (siehe unten)
   5. C – KI-Assistent: wartet auf die Entscheidung des Nutzers zum (kostenpflichtigen) Anthropic-API-Schlüssel
-- **Werkzeuge am Rechner des Nutzers:** R, Java und Processing hat er nach eigener Aussage installiert; vor Block I prüfen (`Rscript`, `java`, `processing-java`). Node ist vorhanden, aber über nvm nicht aktiviert.
+- **Werkzeuge am Rechner des Nutzers** (geprüft 21. Oktober 2026): Processing 4.5.7 unter `C:\Program Files\Processing` (CLI geht); R 4.6.1 unter `C:\Program Files\R\R-4.6.1`, nicht im PATH, ohne Pakete (ggplot2, aRtsy, jsonlite fehlen); Java nur 8 (Kotlin/OPENRNDR braucht 17+ und Gradle); Node über nvm, aber keine Version aktiv.
+- **Offene Entscheidungen für den Rest von Block I:** p5.js mitliefern (Download von cdnjs) oder aus dem Netz laden; R-Pakete installieren; Kotlin nur als Vorlage; Node über nvm aktivieren.
 - **III, V, VI** (weitere Algorithmen, Morphogenese, Processing-Bibliotheken) sind noch nicht eingeplant.
 - **Zwei Reddit-Beiträge** aus r/generative waren in der Cloud nicht abrufbar. Der Nutzer soll sie beschreiben oder einen Screenshot schicken.
 - **Website-Plattform** des Nutzers noch unbekannt; sie entscheidet über die Website-Anbindung und die React-Komponente.

@@ -29,10 +29,11 @@ Vorher: 118 Tests unter Windows 11 und Python 3.14, davon 3 Fehlschläge und 1 F
 Gemeinsam für alle Sprachen: Seed, Regler (`param`), Varianten, Favoriten, Export (PNG/SVG/Video) und Web-Seite bleiben gleich.
 
 - ⬜ **p5.js / JavaScript-Modus:** Skizzen in p5.js schreiben; sie laufen direkt im Browser, auch am iPad.
-- ⬜ **Processing (Java, `.pde`):**
-  - Sketches über `processing-java` ausführen, sofern Processing installiert ist
-  - Bilder und Animationen ins Studio holen
-  - Konverter einfacher Processing-Sketches nach plotart-Python
+- ✅ **Processing (Java, `.pde`)** – Version 1.14.0, `plotart/languages/`:
+  - ✅ Sketches mit dem installierten Processing ausführen (`Processing cli`, sonst `processing-java`), Seed, Fehler mit Zeile
+  - ✅ Bilder und Animationen ins Studio holen (Sprachwahl, Player, PNG)
+  - ✅ Konverter nach plotart-Python (`pde_convert.py`, Studio „⇄ nach plotart“, `plotart pde`)
+  - ⬜ Java-Farbhervorhebung im Editor (CodeMirror-Modus „clike“ müsste dazukommen)
 - ⬜ **R-Kunst:**
   - R-Skripte (aRtsy, ggplot2) über `Rscript` am Computer
   - R im Browser über webR

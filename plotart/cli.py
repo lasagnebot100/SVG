@@ -258,6 +258,45 @@ def _run_sketch_cmd(args) -> int:
     return status
 
 
+def _pde_cmd(args) -> int:
+    """plotart pde datei.pde [--run]: convert to plotart Python, or run with Processing and save the frames."""
+    from pathlib import Path
+    src_path = Path(args.file)
+    if not src_path.is_file():
+        print(f"✗ {src_path} gibt es nicht", file=sys.stderr)
+        return 1
+    source = src_path.read_text(encoding="utf-8")
+    if not args.run:
+        from .languages.pde_convert import convert_pde
+        r = convert_pde(source)
+        target = src_path.with_suffix(".py")
+        if target.exists():
+            print(f"✗ {target} existiert bereits – bitte umbenennen oder löschen", file=sys.stderr)
+            return 1
+        target.write_text(r["source"], encoding="utf-8")
+        print(f"✓ {target}" + (f"  ({len(r['warnings'])} Hinweise oben in der Datei)" if r["warnings"] else ""))
+        return 0
+    from .languages.processing import ProcessingError, run_pde
+    try:
+        r = run_pde(source, args.frames, args.seed)
+    except ProcessingError as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return 1
+    if r["log"]:
+        print(r["log"])
+    if r["error"]:
+        where = f"Zeile {r['error']['line']}: " if r["error"].get("line") else ""
+        print(f"✗ {where}{r['error']['message']}", file=sys.stderr)
+        return 1
+    out = Path(args.out) / f"{src_path.stem}_{args.seed}"
+    out.mkdir(parents=True, exist_ok=True)
+    for i, png in enumerate(r["frames"], 1):
+        (out / f"bild_{i:04d}.png").write_bytes(png)
+    n = len(r["frames"])
+    print(f"✓ {out}  –  {n} {'Bild' if n == 1 else 'Bilder'}, {r['width']} × {r['height']} px, {r['ms'] / 1000:.1f} s")
+    return 0
+
+
 def main(argv=None):
     safe_console()
     ap = argparse.ArgumentParser(prog="plotart", description="Generative SVG-Kunst für Stiftplotter")
@@ -328,6 +367,13 @@ def main(argv=None):
                         help="Callbacks-Datei für einen Script TOP in TouchDesigner schreiben")
     td.add_argument("-o", "--out", default=os.path.join("output", "plotart_script_top.py"))
 
+    pd = sub.add_parser("pde", help="Processing-Sketch (.pde) nach plotart übertragen oder mit Processing ausführen")
+    pd.add_argument("file", help="Pfad zur .pde-Datei")
+    pd.add_argument("--run", action="store_true", help="mit dem installierten Processing ausführen, Bilder nach output/")
+    pd.add_argument("--frames", type=int, help="--run: Anzahl Bilder (Standard 120 bei draw(), sonst 1)")
+    pd.add_argument("-s", "--seed", type=int, default=1, help="Seed für random() und noise()")
+    pd.add_argument("-o", "--out", default="output", help="--run: Ausgabeordner")
+
     sub.add_parser("list", help="Generatoren und Parameter auflisten")
 
     r = sub.add_parser("render", help="ein Bild erzeugen")
@@ -355,6 +401,9 @@ def main(argv=None):
 
     if args.cmd == "sketch":
         sys.exit(_run_sketch_cmd(args))
+
+    if args.cmd == "pde":
+        sys.exit(_pde_cmd(args))
 
     if args.cmd == "blender-addon":
         from .blender.package import build_addon

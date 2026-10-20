@@ -102,8 +102,9 @@ def sketch_thumb(req: dict) -> dict:
 
 
 def sketch_examples(req: dict) -> dict:
+    from .languages.processing import list_pde_examples
     from .sketch import list_examples
-    return {"examples": list_examples()}
+    return {"examples": list_examples(), "pde": list_pde_examples()}
 
 
 def sketch_reference(req: dict) -> dict:
@@ -221,6 +222,12 @@ def anim_live(req: dict) -> dict:
             "log": fr.log, "sketch_error": fr.error, "osc_out": osc_out, "tempo": beat_info}
 
 
+def pde_convert(req: dict) -> dict:
+    """A Processing (.pde) sketch as plotart Python: {"source", "warnings"}."""
+    from .languages.pde_convert import convert_pde
+    return convert_pde(req.get("source", ""), req.get("title") or "")
+
+
 def edition_features(req: dict) -> dict:
     """Traits (feature()) of many seeds for the rarity overview – in chunks: {"seeds": [...], "budget_ms"}."""
     from .sketch.edition import collect_features
@@ -275,6 +282,7 @@ COMMANDS = {
     "sketch_3d": sketch_3d,
     "anim_live": anim_live,
     "edition_features": edition_features,
+    "pde_convert": pde_convert,
     "audio_data": audio_data,
     "viewer_html": viewer_html,
     "export_capabilities": export_capabilities,
