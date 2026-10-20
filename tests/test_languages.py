@@ -157,6 +157,51 @@ class P5Tests(unittest.TestCase):
         self.assertIn("plotart/languages/examples/p01_baelle.pde", files)
 
 
+class RTests(unittest.TestCase):
+    def test_helpers(self):
+        from plotart.languages import r as R
+        self.assertEqual([R._r_value(v) for v in (True, 3, 2.5, 'a"b\\c')], ["TRUE", "3", "2.5", '"a\\"b\\\\c"'])
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp, "params.tsv")
+            f.write_text("N\tint\t30\t3\t200\t\t\nFarbe\tcolor\t#1f5fbf\t\t\t\t\nP\tchoice\ta\t\t\t\ta\x1fb\n"
+                         "Z\tfloat\t0.5\t\t\t\t\nAn\tbool\tTRUE\t\t\t\t\n", encoding="utf-8")
+            specs = {s["name"]: s for s in R._parse_specs(f)}
+        self.assertEqual((specs["N"]["min"], specs["N"]["max"], specs["N"]["step"], specs["N"]["default"]), (3, 200, 1, 30))
+        self.assertEqual(specs["Farbe"]["kind"], "color")
+        self.assertEqual(specs["P"]["choices"], [["a", "a"], ["b", "b"]])
+        self.assertEqual((specs["Z"]["min"], specs["Z"]["max"]), (0, 1.5))
+        self.assertIs(specs["An"]["default"], True)
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp, "Rscript.exe")
+            fake.write_text("", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"PLOTART_RSCRIPT": str(fake)}):
+                self.assertEqual(R.find_rscript(), str(fake))
+        with mock.patch.object(R, "find_rscript", return_value=None):
+            with self.assertRaises(R.RError) as cm:
+                R.run_r("plot(1)")
+        self.assertIn("cran.r-project.org", str(cm.exception))
+
+    def test_examples_listed(self):
+        ex = bridge.dispatch("sketch_examples", {})["r"]
+        self.assertEqual([e["title"] for e in ex][0], "R: Kreise mit Basisgrafik")
+        self.assertTrue(all("plotart_param(" in e["source"] for e in ex))
+
+    @unittest.skipUnless(__import__("plotart.languages.r", fromlist=["find_rscript"]).find_rscript(), "R fehlt")
+    def test_real_r(self):
+        from plotart.languages.r import run_r
+        src = ('n <- plotart_param("Anzahl", 10L, 1L, 50L)\nplotart_canvas(300, 200)\n'
+               'par(mar = c(1, 1, 1, 1))\nplot(runif(n), runif(n))\ncat("n =", n, "\\n")\n')
+        a = run_r(src, {"Anzahl": 7}, seed=3)
+        self.assertIsNone(a["error"], a["error"])
+        self.assertEqual((len(a["frames"]), a["width"], a["height"]), (1, 300, 200))
+        self.assertIn("n = 7", a["log"])
+        self.assertEqual(a["params"][0]["name"], "Anzahl")
+        self.assertEqual(run_r(src, {"Anzahl": 7}, seed=3)["frames"], a["frames"])        # same seed, same image
+        self.assertNotEqual(run_r(src, {"Anzahl": 7}, seed=4)["frames"], a["frames"])
+        self.assertEqual(run_r("a <- 1\nb <- fehlt + 1\n")["error"]["line"], 2)
+        self.assertEqual(run_r("x <- (1 +\n")["error"]["line"], 2)
+
+
 class RunTests(unittest.TestCase):
     def test_prepare_and_has_draw(self):
         with tempfile.TemporaryDirectory() as tmp:

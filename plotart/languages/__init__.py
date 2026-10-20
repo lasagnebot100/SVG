@@ -17,6 +17,7 @@ def list_examples(ext: str) -> list[dict]:
     for path in sorted(EXAMPLES_DIR.glob(f"*{ext}")):
         src = path.read_text(encoding="utf-8")
         first = src.lstrip().splitlines()[0] if src.strip() else ""
-        title = first[2:].strip() if first.startswith("//") else path.stem
+        marker = "#" if ext.lower() == ".r" else "//"           # R comments start with "#"
+        title = first[len(marker):].strip() if first.startswith(marker) else path.stem
         out.append({"name": path.stem, "title": title, "source": src})
     return out

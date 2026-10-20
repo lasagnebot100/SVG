@@ -35,10 +35,10 @@ Gemeinsam für alle Sprachen: Seed, Regler (`param`), Varianten, Favoriten, Expo
   - ✅ Bilder und Animationen ins Studio holen (Sprachwahl, Player, PNG)
   - ✅ Konverter nach plotart-Python (`pde_convert.py`, Studio „⇄ nach plotart“, `plotart pde`)
   - ⬜ Java-Farbhervorhebung im Editor (CodeMirror-Modus „clike“ müsste dazukommen)
-- ⬜ **R-Kunst:**
-  - R-Skripte (aRtsy, ggplot2) über `Rscript` am Computer
-  - R im Browser über webR
-  - Beispiele im Stil von aRtsy
+- ✅ **R-Kunst** – Version 1.16.0, `plotart/languages/r.py`:
+  - ✅ R-Skripte (aRtsy, ggplot2) über `Rscript` am Computer, mit Seed, Reglern (`plotart_param()`) und Fehlerzeile
+  - ✅ R im Browser über webR 0.6.0
+  - ✅ Beispiele: Basisgrafik, aRtsy, ggplot2
 - ⬜ **Kotlin (OPENRNDR):**
   - Vorlagen-Projekt
   - Datenaustausch mit plotart (SVG, JSON-Geometrie, OSC)

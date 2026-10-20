@@ -24,7 +24,7 @@ Ein Werkzeug, um **generative und algorithmische Kunst in Python** zu erschaffen
 - **Ton & Interaktion:** `load_audio()` mit Pegel, Spektrum, Bass/Mitten/Höhen und Beat-Erkennung, Ton im Video; Maus, Tastatur und MIDI live im Studio, Aufnahme der Eingaben für den Export
 - **3D in der Skizze:** `box()`, `sphere()`, `torus()`, `mesh()`, Kamera, Lichter, `orbit_control()`; Export als **glTF (.glb)/OBJ**, echte 3D-Objekte in Blender, **verdeckte Linien entfernen** für 3D-Plots
 - **TouchDesigner & OSC:** Studio per OSC fernsteuern, `osc()`/`osc_send()` in Skizzen, Skizzen als Live-Textur in einem Script TOP
-- **p5.js und Processing im Studio:** p5.js-Sketches laufen direkt im Browser (Regler, Seed, PNG, Video); `.pde`-Sketches mit dem installierten Processing ausführen oder nach plotart-Python übertragen
+- **p5.js, Processing und R im Studio:** R-Skripte (ggplot2, aRtsy) am Computer über Rscript, im Browser über webR; p5.js-Sketches laufen direkt im Browser (Regler, Seed, PNG, Video); `.pde`-Sketches mit dem installierten Processing ausführen oder nach plotart-Python übertragen
 - **Live & VJ:** Live-Coding ohne Neustart (der Zustand bleibt), Takt mit `bpm`/`beat`/`on_beat()` aus Tap-Tempo oder Ableton Link, Ausgabefenster für den Beamer, Video live per NDI oder Spout an OBS, Resolume und TouchDesigner
 - **Algorithmic-Art-Workflow:** Konzept als Docstring, Seed-Navigation ◀ ▶, jede Skizze als **eigenständige Web-Seite** teilen
 - **p5.js/py5-kompatibel:** camelCase-Namen (`noFill()`, `strokeWeight()`, `createCanvas(…, WEBGL)`, `frameCount` …), shapely-Geometrie und Schraffur eingebaut
@@ -381,9 +381,9 @@ pip install -e ".[spout]"     # Spout – SpoutGL gibt es bisher für Python 3.1
 
 - **Beispiele:** 60 (Visuals im Takt), 61 (Live-Coding: der Zustand bleibt).
 
-## Andere Sprachen im Studio: p5.js und Processing
+## Andere Sprachen im Studio: p5.js, Processing und R
 
-Über die Sprachwahl oben im Studio (**Python (plotart)**, **Processing (Java)**, **p5.js (JavaScript)**) lassen sich Sketches in der jeweiligen Sprache schreiben, öffnen (`.pde`, `.js`) und speichern. Jede Sprache behält ihren eigenen Code; unter „Beispiele …“ stehen passende Beispiele.
+Über die Sprachwahl oben im Studio (**Python (plotart)**, **Processing (Java)**, **p5.js (JavaScript)**, **R**) lassen sich Sketches in der jeweiligen Sprache schreiben, öffnen (`.pde`, `.js`, `.R`) und speichern. Jede Sprache behält ihren eigenen Code; unter „Beispiele …“ stehen passende Beispiele.
 
 ### p5.js
 
@@ -394,6 +394,15 @@ pip install -e ".[spout]"     # Spout – SpoutGL gibt es bisher für Python 3.1
 - **Seed:** gilt für `random()` und `noise()` – derselbe Seed ergibt dasselbe Bild; ◀ ▶ blättert durch die Varianten.
 - **Fehler** erscheinen mit Zeilennummer, `console.log()` in der Konsole.
 - **Export:** PNG des aktuellen Bildes; **⏺ Video** nimmt eine WebM-Datei auf.
+
+### R
+
+- **Am Computer** läuft das Skript mit dem installierten R (`Rscript`, wird auch ohne PATH gefunden, sonst `PLOTART_RSCRIPT`).
+- **In der Browser-Version** (auch am iPad) läuft R über [webR](https://docs.r-wasm.org/webr/latest/) – R als WebAssembly, Pakete wie ggplot2 werden beim ersten `library()` nachgeladen.
+- `plotart_param("Anzahl", 60L, 5L, 400L)` erzeugt Regler (auch Farben, Schalter, `options = c(…)` für eine Auswahl); `plotart_canvas(800, 800)` legt die Bildgröße fest.
+- **Seed** gilt für `runif()`, `rnorm()` und Co.; ggplot-Grafiken werden automatisch gezeichnet, jede Grafik-Seite wird ein Bild.
+- **Fehler** erscheinen mit Zeilennummer, Ausgaben von `cat()`/`print()` in der Konsole.
+- **Beispiele:** Basisgrafik, [aRtsy](https://koenderks.github.io/aRtsy/) (Strömungslinien) und ggplot2 (Phyllotaxis-Spirale). Pakete einmalig in R installieren: `install.packages(c("ggplot2", "aRtsy"))`.
 
 ### Processing
 
@@ -700,7 +709,7 @@ plotart/
 │   ├── edition.py     Merkmale, Seltenheiten, Metadaten, Galerie · tiles.py: Großformat auf mehreren Blättern
 ├── touchdesigner/     Renderer + Script-TOP-Vorlage für TouchDesigner
 ├── osc.py             OSC über UDP (reines Python)
-├── languages/         Processing: Ausführen (processing.py), Übertragung nach plotart (pde_convert.py); Beispiele (.pde, .js)
+├── languages/         Processing (processing.py, pde_convert.py), R (r.py); Beispiele (.pde, .js, .R)
 ├── tempo.py           Ableton Link für den Live-Modus
 ├── videoout.py        Video live an andere Programme (NDI, Spout)
 ├── viewer.py          Skizze als eigenständige Web-Seite

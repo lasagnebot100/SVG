@@ -232,6 +232,16 @@ class Handler(BaseHTTPRequestHandler):
             return {"frames": [{"svg": s, "clears": True} for s in frames_as_svg(r["frames"])],
                     "width": r["width"], "height": r["height"], "fps": 30, "log": r["log"], "ms": r["ms"],
                     "sketch_error": r["error"]}
+        if cmd == "r_run":
+            from .languages.processing import frames_as_svg
+            from .languages.r import RError, run_r
+            try:
+                r = run_r(req.get("source", ""), req.get("params") or {}, int(req.get("seed") or 1))
+            except RError as exc:
+                return {"error": str(exc)}
+            return {"frames": [{"svg": s, "clears": True} for s in frames_as_svg(r["frames"])],
+                    "width": r["width"], "height": r["height"], "fps": 10, "log": r["log"], "ms": r["ms"],
+                    "params": r["params"], "sketch_error": r["error"]}
         if cmd == "sketch_files":
             return {"dir": str(self.sketches.dir), "files": self.sketches.list()}
         if cmd == "sketch_file_load":
